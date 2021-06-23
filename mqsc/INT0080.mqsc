@@ -1,0 +1,127 @@
+************************
+* Author               : Jimmy Lindau (JIMA)
+* History              : 20210607 Creation date
+* Description          : Websphere MQSeries Definition file
+*                      : This definition file creates the mq configuration
+*                      : 
+*                      : 
+*                      : 
+*                      : 
+************************ 
+
+* Run script from text file
+* Windows - runmqsc qmgr < textfile
+
+*******************************************************************
+* Local queues
+*******************************************************************
+DEFINE QLOCAL('INT0080.GET.PERPERSON.TRIGGER.BQ') +
+       DESCR('Backout queue to INT0080.GET.PERPERSON.TRIGGER') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.GET.PERPERSON.TRIGGER') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.GET.PERPERSON.TRIGGER.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.EMPLOYEE.BQ') +
+       DESCR('Backout queue to INT0080.PROCESS.EMPLOYEE') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.EMPLOYEE') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.PROCESS.EMPLOYEE.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.GET.FO.LOCATION.BQ') +
+       DESCR('Backout queue to INT0080.GET.FO.LOCATION') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.GET.FO.LOCATION') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.GET.FO.LOCATION.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.LOCATION.BQ') +
+       DESCR('Backout queue to INT0080.PROCESS.LOCATION') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.LOCATION') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.PROCESS.LOCATION.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+*******************************************************************
+* Remote queues
+*******************************************************************
+
+*******************************************************************
+* Alias queues
+*******************************************************************
+
+*******************************************************************
+* Subscriptions
+*******************************************************************
+
+******************************************************************* 
+* System objects
+******************************************************************* 
+
+******************************************************************* 
+* Sender channels
+******************************************************************* 
+
+******************************************************************* 
+* Receiver channels
+******************************************************************* 
+
+******************************************************************* 
+* Server connection channel
+******************************************************************* 
+
+******************************************************************
+* Cluster Local queues
+*******************************************************************
+
+*******************************************************************
+* Cluster Alias queues
+*******************************************************************
+
+*******************************************************************
+* Cluster sender channel 
+******************************************************************* 
+
+*******************************************************************
+* Cluster receiver channel 
+*******************************************************************     

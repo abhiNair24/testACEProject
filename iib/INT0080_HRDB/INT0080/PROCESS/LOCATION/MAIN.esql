@@ -1,0 +1,239 @@
+BROKER SCHEMA INT0080.PROCESS.LOCATION
+
+-- Working tables
+DECLARE TBL_LOC				CONSTANT CHARACTER 'Location';
+
+CREATE COMPUTE MODULE ProcessLocation
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN		
+		
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
+		
+		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
+			CALL MapLocation(inRef);
+			SET OutputRoot.XMLNSC.Info = 'Location sucessfully processed.';	
+		ELSE
+			SET OutputRoot.XMLNSC.Info = 'No data found in input message.';			
+			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
+		END IF;
+			
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE MapLocation(IN inRef REFERENCE) BEGIN
+		
+		WHILE LASTMOVE(inRef) DO	
+			DECLARE vIgnore BOOLEAN FALSE;		
+
+			-- Incase of error then easier to identify which row that was in error
+			SET Environment.locationId = inRef.externalCode;
+					
+			-- Process Location	
+			CALL ProcessLocation(inRef, vIgnore);			
+												
+			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+		END WHILE;	
+
+	END;
+
+	CREATE PROCEDURE ProcessLocation(IN inRef REFERENCE,
+									 INOUT vIgnore BOOLEAN) BEGIN
+	
+		DECLARE locationId 		CHAR;
+		DECLARE locationName 	CHAR;
+		DECLARE companyCode 	CHAR;
+		DECLARE timezone 		CHAR;
+		DECLARE country 		CHAR;
+		DECLARE state 			CHAR;
+		DECLARE province 		CHAR;
+		DECLARE city		 	CHAR;
+		DECLARE zipCode		 	CHAR;
+		DECLARE address1		CHAR;
+		DECLARE address2		CHAR;
+		DECLARE address3		CHAR;
+		DECLARE address6		CHAR;
+		DECLARE status		 	CHAR;													
+		DECLARE datbaseAction	CHAR;
+		
+		SET locationId			= TRIM(LEFT(inRef.externalCode, 32));
+		SET locationName		= TRIM(LEFT(inRef.name, 32));
+		SET companyCode			= TRIM(LEFT(inRef.companyFlxNav.results.Item.externalCode, 8));
+		SET timezone			= TRIM(LEFT(inRef.timezone, 256));
+		SET country				= TRIM(LEFT(inRef.addressNavDEFLT.country, 256));
+		SET state				= TRIM(LEFT(inRef.addressNavDEFLT.state, 256));
+		SET province			= TRIM(LEFT(inRef.addressNavDEFLT.province, 256));
+		SET city				= TRIM(LEFT(inRef.addressNavDEFLT.city, 256));		
+		SET zipCode				= TRIM(LEFT(inRef.addressNavDEFLT.zipCode, 256));			
+		SET address1			= TRIM(LEFT(inRef.addressNavDEFLT.address1, 256));		
+		SET address2			= TRIM(LEFT(inRef.addressNavDEFLT.address2, 256));			
+		SET address3			= TRIM(LEFT(inRef.addressNavDEFLT.address3, 256));			
+		SET address6			= TRIM(LEFT(inRef.addressNavDEFLT.address6, 256));
+		SET status				= TRIM(LEFT(inRef.status, 2));					
+		
+						
+		-- Get current location in table Location
+		CALL GetCurrentLocInLocation(locationId);
+		
+		/* Check if insert new company information or update current location information or 
+		   just update lastSyncDate for a current location */
+		IF (CARDINALITY(Environment.tmp.Location[]) = 0) THEN
+			SET datbaseAction = 'Insert';
+		ELSEIF (COALESCE(locationName, '') <> COALESCE(Environment.tmp.Location.locationName, '') OR
+				COALESCE(companyCode, '') <> COALESCE(Environment.tmp.Location.companyCode, '') OR
+				COALESCE(country, '') <> COALESCE(Environment.tmp.Location.country, '') OR
+				COALESCE(timezone, '') <> COALESCE(Environment.tmp.Location.timezone, '') OR				
+				COALESCE(state, '') <> COALESCE(Environment.tmp.Location.state, '') OR
+				COALESCE(province, '') <> COALESCE(Environment.tmp.Location.province, '') OR
+				COALESCE(city, '') <> COALESCE(Environment.tmp.Location.city, '') OR
+				COALESCE(zipCode, '') <> COALESCE(Environment.tmp.Location.zipCode, '') OR
+				COALESCE(address1, '') <> COALESCE(Environment.tmp.Location.address1, '') OR
+				COALESCE(address2, '') <> COALESCE(Environment.tmp.Location.address2, '') OR
+				COALESCE(address3, '') <> COALESCE(Environment.tmp.Location.address3, '') OR
+				COALESCE(address6, '') <> COALESCE(Environment.tmp.Location.address6, '') OR
+				COALESCE(status, '') <> COALESCE(Environment.tmp.Location.status, '')) THEN
+			SET datbaseAction = 'Update';
+		END IF;		
+			
+		IF (datbaseAction = 'Insert') THEN
+			CALL InsertLocation(locationId,
+							    locationName,
+							    companyCode,
+							    timezone,
+							    country,
+							    state,
+							    province,
+							    city,
+							    zipCode,
+							    address1,
+							    address2,
+							    address3,
+							    address6,
+							    status);
+		ELSEIF (datbaseAction = 'Update') THEN
+			CALL UpdateLocation(locationId,
+							    locationName,
+							    companyCode,
+							    timezone,
+							    country,
+							    state,
+							    province,
+							    city,
+							    zipCode,
+							    address1,
+							    address2,
+							    address3,
+							    address6,
+							    status);
+		ELSE -- Update existing record with a lastSyncDate
+			UPDATE Database.dbo.{TBL_LOC} AS T 
+			SET lastSyncDate = CURRENT_TIMESTAMP
+			WHERE T.locationId = locationId;
+		END IF;
+		
+																
+	END;
+
+	CREATE PROCEDURE GetCurrentLocInLocation(IN locationId CHAR) BEGIN			
+		SET Environment.tmp.Location[] = 
+		SELECT  T.locationId,
+				T.locationName,
+				T.companyCode,
+				T.timezone,
+				T.country,
+				T.state,
+				T.province,
+				T.city,
+				T.zipCode,
+				T.address1,
+				T.address2,
+				T.address3,
+				T.address6,
+				T.status
+		FROM 	Database.dbo.{TBL_LOC} AS T 
+		WHERE 	T.locationId = locationId;					
+	END;
+
+	CREATE PROCEDURE InsertLocation(IN locationId CHAR,
+								    IN locationName CHAR,
+								    IN companyCode CHAR,
+								    IN timezone CHAR,
+								    IN country CHAR,
+								    IN state CHAR,
+								    IN province CHAR,
+								    IN city CHAR,
+								    IN zipCode CHAR,
+								    IN address1 CHAR,
+								    IN address2 CHAR,
+								    IN address3 CHAR,
+								    IN address6 CHAR,
+								    IN status CHAR) BEGIN
+
+		INSERT INTO Database.dbo.{TBL_LOC}(locationId,
+										   locationName,
+										   companyCode,
+										   timezone,
+										   country,
+										   state,
+										   province,
+										   city,
+										   zipCode,
+										   address1,
+										   address2,
+										   address3,
+										   address6,
+										   status,
+										   recordLastUpdated,
+										   lastSyncDate)
+		VALUES (locationId,			
+				locationName,					
+				companyCode,
+				timezone,
+				country,			
+				state,		
+				province,
+				city,			
+				zipCode,
+				address1,
+				address2,			
+				address3,
+				address6,					
+				status,													
+				CURRENT_TIMESTAMP,			--recordLastUpdated
+				CURRENT_TIMESTAMP);			--lastSyncDate
+	END;
+
+	CREATE PROCEDURE UpdateLocation(IN locationId CHAR,
+								    IN locationName CHAR,
+								    IN companyCode CHAR,
+								    IN timezone CHAR,
+								    IN country CHAR,
+								    IN state CHAR,
+								    IN province CHAR,
+								    IN city CHAR,
+								    IN zipCode CHAR,
+								    IN address1 CHAR,
+								    IN address2 CHAR,
+								    IN address3 CHAR,
+								    IN address6 CHAR,
+								    IN status CHAR) BEGIN
+
+		UPDATE Database.dbo.{TBL_LOC} AS T
+		SET locationName 		= locationName, 
+			companyCode 		= companyCode,
+			timezone			= timezone, 
+			country 			= country,
+			state 				= state,
+			province 			= province,
+			city				= city,
+			zipCode				= zipCode,
+			address1			= address1,
+			address2			= address2,
+			address3			= address3,
+			address6			= address6,
+			status				= status,
+			recordLastUpdated 	= CURRENT_TIMESTAMP,
+			lastSyncDate	 	= CURRENT_TIMESTAMP
+		WHERE T.locationId = locationId;
+
+	END;
+END MODULE;

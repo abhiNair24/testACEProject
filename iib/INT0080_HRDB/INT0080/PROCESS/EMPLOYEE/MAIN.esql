@@ -1,0 +1,1041 @@
+BROKER SCHEMA INT0080.PROCESS.EMPLOYEE
+
+-- Working tables
+DECLARE TBL_PERSON		CONSTANT CHARACTER 'Person';
+DECLARE TBL_EMPLOYMENT	CONSTANT CHARACTER 'Employment';
+
+
+CREATE COMPUTE MODULE ProcessEmployee
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
+		
+		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
+			CALL MapPerPerson(inRef);
+			SET OutputRoot.XMLNSC.Employee.Info = 'Employees sucessfully processed.';			
+		ELSE
+			SET OutputRoot.XMLNSC.Employee.Info = 'No data found in input message.';			
+			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
+		END IF;
+		
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE MapPerPerson(IN inRef REFERENCE) BEGIN
+
+		DECLARE i INT 1;
+		
+		WHILE LASTMOVE(inRef) DO
+			DECLARE vFilter BOOLEAN FALSE;
+			DECLARE vIgnore BOOLEAN FALSE;
+			DECLARE vEmpAr INT 1;
+			DECLARE globAssign BOOLEAN FALSE;
+			DECLARE workerType CHAR;
+			DECLARE employmentType CHAR;						
+
+			-- Incase of error then easier to identify which row that was in error
+			SET Environment.personIdExternal = inRef.personIdExternal;
+			SET Environment.initials = inRef.customString10;
+		
+			-- Get correct employmentNav array		
+			CALL GetEmploymentNav(inRef, vEmpAr, globAssign, vIgnore);
+			
+			-- Filter out some employees		
+			CALL Filter(inRef, vEmpAr, vFilter);
+			
+			IF (vFilter = FALSE) THEN
+				-- Validate others
+				CALL ValidateAndLog(inRef, vEmpAr, vIgnore);
+													
+					-- Get SF Worker Type for Non Employees	
+					IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN
+						SET workerType = inRef.employmentNav.results.Item[vEmpAr].workOrderNav.results.Item.workerType;				  				  				
+					END IF;	
+
+					-- Process Person			
+					IF (vIgnore = FALSE) THEN
+						CALL ProcessPerson(inRef,
+										   vEmpAr,
+										   vIgnore);
+	
+					-- Process Employment	
+					CALL ProcessEmployment(inRef,
+									   	   vEmpAr,
+									       workerType,
+									       globAssign,
+									       vIgnore);			
+				END IF;
+			END IF;	
+							
+			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+		END WHILE;	
+	END;
+		
+	CREATE PROCEDURE GetEmploymentNav(IN inRef REFERENCE, 
+									  INOUT vEmpAr INT, 
+									  INOUT globAssign BOOLEAN, 
+									  INOUT vIgnore BOOLEAN) BEGIN
+		DECLARE nbrEmpNav INT;
+		DECLARE tmpStartDate TIMESTAMP;
+		DECLARE vStartDate TIMESTAMP;
+		DECLARE vEndDate TIMESTAMP;
+		DECLARE vDateRange CHAR '';
+		DECLARE todayDate TIMESTAMP;
+		DECLARE vtodayDate CHAR;	
+		DECLARE i INT 1;
+		
+			
+		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00';
+		SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');		
+		SET nbrEmpNav 	= CARDINALITY(inRef.employmentNav.results.Item[]);
+
+		IF (nbrEmpNav = 0) THEN
+			SET vIgnore = TRUE;
+		END IF;
+
+		-- Get active employmentNav
+		IF (nbrEmpNav > 1) THEN		
+			DECLARE nullEndDate BOOLEAN FALSE;
+			
+			SET tmpStartDate = CAST('1970-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
+			
+			WHILE(nbrEmpNav >= i) DO
+
+				SET vStartDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].startDate);
+				SET vEndDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].endDate);
+				SET vDateRange 	= vDateRange || '->startDate[' || CAST(i-1 AS CHAR) || ']:' || COALESCE(CAST(vStartDate AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'), 'null');
+				SET vDateRange 	= vDateRange || '->endDate[' || CAST(i-1 AS CHAR) || ']:' || COALESCE(CAST(vEndDate AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'), 'null');
+
+				IF (globAssign = FALSE) THEN			
+									
+					-- Go for start date range check to find the valid employmentNav - employmentNav/startDate must be <= todays date
+					IF (vStartDate <= todayDate) THEN
+						
+						-- If employmentNav/endDate is null, then we assume this is the active record, even if another employmentNav/startDate is newer
+						IF (vEndDate IS NULL) THEN
+							SET nullEndDate = TRUE;
+							SET vEmpAr = i;
+						END IF;							
+						
+						-- employmentNav/startDate must be > than set start date(1970-01-01 00:00:00) or previous employmentNav/startDate
+						IF ((vStartDate > tmpStartDate) AND nullEndDate = FALSE) THEN
+							SET tmpStartDate = vStartDate;																
+							SET vEmpAr = i;
+						END IF;
+
+					END IF;
+
+					-- Check if any Global Assignment exist and is active, if active, then it is this employmentNav to use and all others can be ignored
+					IF (inRef.employmentNav.results.Item[i].empGlobalAssignmentNav.userId IS NOT NULL) THEN					
+						IF (inRef.employmentNav.results.Item[i].jobInfoNav.results.Item.emplStatusNav.externalCode = 'A') THEN -- If jobInfo is active, then assume Global Assignment is active							
+							SET globAssign 	= TRUE;
+							SET vEmpAr 	= i;      	  	     			  							
+						END IF;
+					END IF;		
+				END IF;					
+				
+				SET i = i +1;	
+			END WHILE;				
+			
+			IF (globAssign = TRUE) THEN -- Global Assignment is active - Allowed - log as info
+				CALL INT0080.COMMON.InsertSynchLog('Employee',
+												   'Info',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'employmentNav',
+												   'Global Assignment is active->Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
+												   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);				
+			ELSE -- If several employmentNav - Allowed - log as info
+				CALL INT0080.COMMON.InsertSynchLog('Employee',
+												   'Info',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'employmentNav',
+												   'Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
+												   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);
+			END IF;
+		END IF;		
+	END;
+
+CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOLEAN) BEGIN
+	
+		DECLARE vEndDateTS 		TIMESTAMP;
+		DECLARE vFilterTS 		TIMESTAMP;
+		DECLARE todayDate 		TIMESTAMP;
+		DECLARE vtodayDate 		CHAR;
+
+		-- Filter out employees with termination date older than 2020-01-01 00:00:00		
+		SET vEndDateTS = COALESCE(INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].endDate), CAST('9999-12-31 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss'));
+		SET vFilterTS = CAST('2020-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
+		
+		IF (vEndDateTS < vFilterTS) THEN
+			SET vFilter = TRUE;
+		END IF;
+		
+		-- Filter out Person ID External containing character _
+		IF CONTAINS(inRef.personIdExternal, '_') THEN
+			SET vFilter = TRUE;
+		END IF;
+		
+		-- Filter out future employees
+		SET vtodayDate 		= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00';
+		SET todayDate 		= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
+		
+		IF (INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate) > todayDate) THEN
+			SET vFilter = TRUE;
+			CALL INT0080.COMMON.InsertSynchLog('Employee',
+											   'Filter',
+											   'PerPerson',
+											   'personIdExternal',
+											   inRef.personIdExternal,
+											   'jobInfoNav',
+											   'StartDate is greater than present date, assuming it is a future employeee->employmentNav/jobInfoNav/startDate:' || CAST(INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate) AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'));					
+		END IF;
+	END;
+
+	CREATE PROCEDURE ValidateAndLog(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vIgnore BOOLEAN) BEGIN
+		
+		-- Check if there are no jobInfoNav - Not allowed - Ignore and log			
+		IF (CARDINALITY(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item[]) = 0) THEN
+			SET vIgnore = TRUE;
+			CALL INT0080.COMMON.InsertSynchLog('Employee',
+											   'Ignore',
+											   'PerPerson',
+											   'personIdExternal',
+											   inRef.personIdExternal,
+											   'jobInfoNav',
+											   'Missing object jobInfoNav->employmentNav/startDate:' || CAST(INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate) AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'));			
+		END IF;										
+		
+		-- Check if several jobInfoNav - Not allowed - Ignore and log
+		IF (vIgnore = FALSE) THEN
+			IF (CARDINALITY(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item[]) > 1) THEN
+				SET vIgnore = TRUE;
+				CALL INT0080.COMMON.InsertSynchLog('Employee',
+												   'Ignore',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'jobInfoNav',
+												   'Several objects of jobInfoNav' || ' Total: ' || CAST(CARDINALITY(inRef.employmentNav.results.Item[1].jobInfoNav.results.Item[]) AS CHAR));			
+			END IF;
+		END IF;
+
+		-- Check if several personalInfoNav - Not allowed - Ignore and log		
+		IF (vIgnore = FALSE) THEN
+			IF (CARDINALITY(inRef.personalInfoNav[1].results.Item[]) > 1) THEN
+				SET vIgnore = TRUE;
+				CALL INT0080.COMMON.InsertSynchLog('Employee',
+												   'Ignore',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'personalInfoNav',
+												   'Several objects of personalInfoNav' || ' Total: ' || CAST(CARDINALITY(inRef.employmentNav.results.Item[1].jobInfoNav.results.Item[]) AS CHAR));						
+			END IF;							
+		END IF;
+
+		-- Check if there are no personalInfoNav - Not allowed - Ignore and log		
+		IF (vIgnore = FALSE) THEN	
+			IF (CARDINALITY(inRef.personalInfoNav.results.Item[]) = 0) THEN
+				SET vIgnore = TRUE;
+				CALL INT0080.COMMON.InsertSynchLog('Employee',
+												   'Ignore',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'personalInfoNav',
+												   'Missing object personalInfoNav');			
+			END IF;								
+		END IF;	
+
+		-- Check if initials not exist - Not allowed - Ignore and log		
+		IF (vIgnore = FALSE) THEN		
+			IF (inRef.customString10 IS NULL OR inRef.customString10 = '') THEN
+				SET vIgnore = TRUE;
+				CALL INT0080.COMMON.InsertSynchLog('Employee',
+												   'Ignore',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'PerPerson',
+												   'Missing Initials->customString10');					
+			END IF;	
+		END IF;
+				
+		-- Check if userid not exists - Not allowed - Ignore and log
+		IF (vIgnore = FALSE) THEN			
+			IF (inRef.employmentNav.results.Item[vEmpAr].userId IS NULL OR inRef.employmentNav.results.Item[vEmpAr].userId = '') THEN
+				SET vIgnore = TRUE;
+				CALL INT0080.COMMON.InsertSynchLog('Employee',
+												   'Ignore',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'employmentNav',
+												   'Missing userId');
+			END IF;
+		END IF;
+	END;
+
+	CREATE FUNCTION GetOrgunitId(IN department CHAR,
+								 IN division CHAR,
+								 IN businessUnit CHAR
+	) RETURNS CHAR BEGIN			 		
+					
+		DECLARE orgUnitId CHAR;
+		
+		SET orgUnitId = COALESCE(department, NULL);
+					
+		IF (orgUnitId IS NULL) THEN
+			SET orgUnitId = COALESCE(division, NULL);
+		END IF;
+				
+		IF (orgUnitId IS NULL) THEN
+			SET orgUnitId = COALESCE(businessUnit, NULL);
+		END IF;
+			  	
+	   	RETURN orgUnitId;
+	END;
+			
+	CREATE PROCEDURE GetSeniorityDate(IN globAssign BOOLEAN,
+									  IN inRef REFERENCE,
+									  IN vEmpAr INT,
+									  INOUT seniorityDate TIMESTAMP) BEGIN
+	
+		IF (globAssign = TRUE) THEN				
+			-- Get seniority date from the employmentNav which is the active and do not contain Global Assignment
+			SET seniorityDate = INT0080.COMMON.GetSFTimeStamp(THE (SELECT ITEM fieldvalue(r.seniorityDate)
+					   		  	  	     	   				  	   FROM inRef.employmentNav.results.Item[] AS r
+						      	  	     	   				  	   WHERE r.endDate IS NULL
+						      	  	     	   				  	   AND r.empGlobalAssignmentNav.userId IS NULL));				
+		ELSE	
+			SET seniorityDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].seniorityDate);			
+			
+			IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN
+				SET seniorityDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate);
+			END IF;													
+		END IF;	
+	END;
+
+	CREATE PROCEDURE GetLastWorkingDay(IN inRef REFERENCE,
+									   IN vEmpAr INT,
+									   INOUT lastWorkingDay TIMESTAMP) BEGIN
+		
+		-- External employee
+		IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN								
+			SET lastWorkingDay = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].endDate);			
+		ELSE -- Permanent/Temporary employee			
+			SET lastWorkingDay = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].lastDateWorked);
+		END IF;				
+	END;							
+
+	CREATE FUNCTION GetIsManager(IN teamMembersSize INT
+	) RETURNS BOOLEAN BEGIN			 		
+								
+		IF (teamMembersSize > 0) THEN
+			RETURN TRUE;
+		ELSE
+			RETURN FALSE;
+		END IF;
+	END;
+
+	CREATE PROCEDURE ProcessPerson(IN inRef REFERENCE,
+								   IN vEmpAr INT,
+								   IN vIgnore BOOLEAN) BEGIN
+	
+		DECLARE personIdExternal	CHAR;
+		DECLARE initials 			CHAR;
+		DECLARE firstName 			CHAR;		
+		DECLARE lastName 			CHAR;
+		DECLARE salutation 			CHAR;
+		DECLARE gender			 	CHAR;
+		DECLARE nationality 		CHAR;
+		DECLARE nativePrefLang 		CHAR;			
+		DECLARE dateOfBirth 		TIMESTAMP;
+		DECLARE country 			CHAR;
+		DECLARE state				CHAR;	
+		DECLARE city 				CHAR;	
+		DECLARE zipCode 			CHAR;
+		DECLARE address1 			CHAR;
+		DECLARE address2 			CHAR;
+		DECLARE address3 			CHAR;
+		DECLARE address4 			CHAR;
+		DECLARE personalEmail		CHAR;
+		DECLARE privPhoneCtryCode	CHAR;
+		DECLARE privPhoneNbr		CHAR;						
+		DECLARE datbaseAction		CHAR;
+	
+		SET personIdExternal 		= TRIM(LEFT(inRef.personIdExternal, 32));
+		
+		IF (vIgnore = FALSE) THEN
+		
+			SET initials 				= TRIM(LEFT(inRef.customString10, 128));		
+			SET firstName				= TRIM(LEFT(inRef.personalInfoNav.results.Item.displayName, 128));
+			SET lastName				= TRIM(LEFT(inRef.personalInfoNav.results.Item.lastName, 128));			
+			SET salutation				= TRIM(LEFT(inRef.personalInfoNav.results.Item.salutationNav.externalCode, 256));		
+			SET gender					= TRIM(LEFT(inRef.personalInfoNav.results.Item.gender, 2));
+			SET nationality				= TRIM(LEFT(inRef.personalInfoNav.results.Item.nationality, 128));
+			SET nativePrefLang			= TRIM(LEFT(inRef.personalInfoNav.results.Item.nativePreferredLangNav.externalCode, 256));
+			SET dateOfBirth 			= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].userNav.dateOfBirth);
+			SET country					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.country, 256));
+			SET state					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.stateNav.externalCode, 256));
+			SET city					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.city, 256));
+			SET zipCode					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.zipCode, 256));
+			SET address1				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address1, 256));
+			SET address2				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address2, 256));
+			SET address3				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address3, 256));
+			SET address4				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address4, 256));
+
+			-- Get personalEmailAddress							          	   		 
+			SET personalEmail = TRIM(LEFT(LOWER(THE (SELECT ITEM fieldvalue(r.emailAddress)
+					   		  	  	     			 FROM inRef.emailNav.results.Item[] AS r
+						      	  	     			 WHERE r.emailTypeNav.externalCode = 'P')), 100));
+		      	  	     		
+			-- Get privatePhoneCountryCode
+			SET privPhoneCtryCode = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.countryCode)
+				          	   		 		   	   FROM inRef.phoneNav.results.Item[] AS r
+				          	   		   		   	   WHERE r.phoneTypeNav.externalCode = 'O'), 32));
+			
+			-- Get privatePhoneNumber
+			SET privPhoneNbr = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.phoneNumber)
+				          	   		 		  FROM inRef.phoneNav.results.Item[] AS r
+				          	   		   		  WHERE r.phoneTypeNav.externalCode = 'O'), 100));	          	   		   		   		 			      	  
+		
+						      	  				
+			-- Get current person in table Person 
+			CALL GetCurrentPerInPerson(personIdExternal);
+		
+			/* Check if insert new person information or update current person information or 
+			   just update lastSyncDate for a current person */
+			IF (CARDINALITY(Environment.tmp.Person[]) = 0) THEN
+				SET datbaseAction = 'Insert';
+			ELSEIF (COALESCE(initials, '') <> COALESCE(Environment.tmp.Person.initials, '') OR
+					COALESCE(firstName, '') <> COALESCE(Environment.tmp.Person.firstName, '') OR
+					COALESCE(lastName, '') <> COALESCE(Environment.tmp.Person.lastName, '') OR
+					COALESCE(salutation, '') <> COALESCE(Environment.tmp.Person.salutation, '') OR
+					COALESCE(gender, '') <> COALESCE(Environment.tmp.Person.gender, '') OR
+					COALESCE(nationality, '') <> COALESCE(Environment.tmp.Person.nationality, '') OR
+					COALESCE(nativePrefLang, '') <> COALESCE(Environment.tmp.Person.nativePreferredLanguage, '') OR
+					COALESCE(dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Person.dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(country, '') <> COALESCE(Environment.tmp.Person.country, '') OR
+					COALESCE(state, '') <> COALESCE(Environment.tmp.Person.state, '') OR
+					COALESCE(city, '') <> COALESCE(Environment.tmp.Person.city, '') OR
+					COALESCE(zipCode, '') <> COALESCE(Environment.tmp.Person.zipCode, '') OR
+					COALESCE(address1, '') <> COALESCE(Environment.tmp.Person.address1, '') OR
+					COALESCE(address2, '') <> COALESCE(Environment.tmp.Person.address2, '') OR
+					COALESCE(address3, '') <> COALESCE(Environment.tmp.Person.address3, '') OR
+					COALESCE(address4, '') <> COALESCE(Environment.tmp.Person.address4, '') OR
+					COALESCE(personalEmail, '') <> COALESCE(Environment.tmp.Person.personalEmail, '') OR
+					COALESCE(privPhoneCtryCode, '') <> COALESCE(Environment.tmp.Person.privatePhoneCountryCode, '') OR
+					COALESCE(privPhoneNbr, '') <> COALESCE(Environment.tmp.Person.privatePhoneNumber, '')) THEN
+				SET datbaseAction = 'Update';
+			END IF;		
+			
+			IF (datbaseAction = 'Insert') THEN
+				CALL InsertPerson(personIdExternal,
+								  initials,
+								  firstName,
+								  lastName,
+								  salutation,
+								  gender,
+								  nationality,
+								  nativePrefLang,
+								  dateOfBirth,
+								  country,
+								  state,
+								  city,
+								  zipCode,
+								  address1,
+								  address2,
+								  address3,
+								  address4,
+								  personalEmail,
+								  privPhoneCtryCode,
+								  privPhoneNbr);
+			ELSEIF (datbaseAction = 'Update') THEN
+				CALL UpdatePerson(personIdExternal,
+								  initials,
+								  firstName,
+								  lastName,
+								  salutation,
+								  gender,
+								  nationality,
+								  nativePrefLang,
+								  dateOfBirth,
+								  country,
+								  state,
+								  city,
+								  zipCode,
+								  address1,
+								  address2,
+								  address3,
+								  address4,
+								  personalEmail,
+								  privPhoneCtryCode,
+								  privPhoneNbr);
+			END IF;																	
+		ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
+			
+			-- Get current person in table Person
+			CALL GetCurrentPerInPerson(personIdExternal);
+			
+			IF (CARDINALITY(Environment.tmp.Person[]) > 0) THEN
+				UPDATE Database.dbo.{TBL_PERSON} AS T 
+				SET lastSyncDate = CURRENT_TIMESTAMP
+				WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+			END IF;
+		END IF;
+	END;	
+
+	CREATE PROCEDURE GetCurrentPerInPerson(IN personIdExternal CHAR) BEGIN			
+		SET Environment.tmp.Person[] = 
+		SELECT  T.personIdExternal,
+				T.initials,
+				T.firstName,
+				T.lastName,
+				T.salutation,
+				T.gender,
+				T.nationality,
+				T.nativePreferredLanguage,
+				T.dateOfBirth,
+				T.country,
+				T.zipCode,
+				T.address1,
+				T.address2,
+				T.address3,
+				T.address4,
+				T.city,
+				T.state,
+				T.personalEmail,
+				T.privatePhoneCountryCode,
+				T.privatePhoneNumber
+		FROM 	Database.dbo.{TBL_PERSON} AS T 
+		WHERE 	T.personIdExternal = personIdExternal;					
+	END;
+
+	CREATE PROCEDURE InsertPerson(IN personIdExternal CHAR,
+								  IN initials CHAR,
+								  IN firstName CHAR,
+								  IN lastName CHAR,
+								  IN salutation CHAR,
+								  IN gender CHAR,
+								  IN nationality CHAR,
+								  IN nativePrefLang CHAR,
+								  IN dateOfBirth TIMESTAMP,
+								  IN country CHAR,
+								  IN state CHAR,
+								  IN city CHAR,
+								  IN zipCode CHAR,
+								  IN address1 CHAR,
+								  IN address2 CHAR,
+								  IN address3 CHAR,
+								  IN address4 CHAR,
+								  IN personalEmail CHAR,
+								  IN privPhoneCtryCode CHAR,
+								  IN privPhoneNbr CHAR) BEGIN
+
+		INSERT INTO Database.dbo.{TBL_PERSON}(personIdExternal,
+											  initials,
+											  firstName,
+											  lastName,
+											  salutation,
+											  gender,
+											  nationality,
+											  nativePreferredLanguage,
+											  dateOfBirth,
+											  country,
+											  state,
+											  city,
+											  zipCode,
+											  address1,
+											  address2,
+											  address3,
+											  address4,
+											  personalEmail,
+											  privatePhoneCountryCode,
+											  privatePhoneNumber,
+											  recordLastUpdated,
+											  lastSyncDate)
+		VALUES (personIdExternal,	
+				initials,						
+				firstName,				
+				lastName,					
+				salutation,			
+				gender,					
+				nationality,		
+				nativePrefLang,				
+				dateOfBirth,								
+				country,						
+				state,							
+				city,		
+				zipCode,													
+				address1,					
+				address2,												
+				address3,				
+				address4,				
+				personalEmail,													
+				privPhoneCtryCode,
+				privPhoneNbr,									
+				CURRENT_TIMESTAMP,	-- recordLastUpdated
+				CURRENT_TIMESTAMP);	-- lastSyncDate	
+	END;
+
+	CREATE PROCEDURE UpdatePerson(IN personIdExternal CHAR,
+								  IN initials CHAR,
+								  IN firstName CHAR,
+								  IN lastName CHAR,
+								  IN salutation CHAR,
+								  IN gender CHAR,
+								  IN nationality CHAR,
+								  IN nativePrefLang CHAR,
+								  IN dateOfBirth TIMESTAMP,
+								  IN country CHAR,
+								  IN state CHAR,
+								  IN city CHAR,
+								  IN zipCode CHAR,
+								  IN address1 CHAR,
+								  IN address2 CHAR,
+								  IN address3 CHAR,
+								  IN address4 CHAR,
+								  IN personalEmail CHAR,
+								  IN privPhoneCtryCode CHAR,
+								  IN privPhoneNbr CHAR) BEGIN
+
+		UPDATE Database.dbo.{TBL_PERSON} AS T
+		SET personIdExternal 		= personIdExternal, 
+			initials 				= initials,
+			firstName 				= firstName,
+			lastName 				= lastName,
+			salutation 				= salutation,
+			gender 					= gender,
+			nationality 			= nationality,
+			nativePreferredLanguage	= nativePrefLang,
+			dateOfBirth				= dateOfBirth,
+			country					= country,
+			state					= state,
+			city					= city,
+			zipCode					= zipCode,
+			address1				= address1,
+			address2				= address2,
+			address3				= address3,
+			address4				= address4,
+			personalEmail 			= personalEmail,
+			privatePhoneCountryCode = privPhoneCtryCode,
+			privatePhoneNumber 		= privPhoneNbr,
+			recordLastUpdated 		= CURRENT_TIMESTAMP,
+			lastSyncDate 			= CURRENT_TIMESTAMP
+		WHERE T.personIdExternal = personIdExternal;
+	END;
+	
+	CREATE PROCEDURE ProcessEmployment(IN inRef REFERENCE,
+								   	   IN vEmpAr INT,
+								   	   IN workerType CHAR,
+								   	   IN globAssign BOOLEAN,
+								   	   IN vIgnore BOOLEAN) BEGIN
+		
+		DECLARE userId					CHAR;
+		DECLARE personIdExternal		CHAR;
+		DECLARE initials 				CHAR;
+		DECLARE companyCode				CHAR;
+		DECLARE locationId				CHAR;		
+		DECLARE orgUnitId			 	CHAR;
+		DECLARE department			 	CHAR;
+		DECLARE division			 	CHAR;
+		DECLARE businessUnit			CHAR;
+		DECLARE costCenter				CHAR;
+		DECLARE positionId 				CHAR;
+		DECLARE positionName 			CHAR;		
+		DECLARE employeeClass 			CHAR;
+		DECLARE employeeSubClass 		CHAR;
+		DECLARE employmentType			CHAR;
+		DECLARE standardHours			CHAR;
+		DECLARE workingDaysPerWeek		CHAR;
+		DECLARE fullTimeEquivalent		CHAR;
+		DECLARE employmentStatus		CHAR;
+		DECLARE jobStartDate			TIMESTAMP;
+		DECLARE seniorityDate			TIMESTAMP;
+		DECLARE lastDateWorked			TIMESTAMP;
+		DECLARE dateOfContractTerm		TIMESTAMP;
+		DECLARE event					CHAR;
+		DECLARE eventReason				CHAR;
+		DECLARE isManager				BOOLEAN;
+		DECLARE businessEmail			CHAR;
+		DECLARE businessMobCtryCode		CHAR;
+		DECLARE businessMobPhoneNbr		CHAR;
+		DECLARE businessLandCtryCode	CHAR;
+		DECLARE businessLandPhoneNbr	CHAR;
+		DECLARE buildingNumber			CHAR;	
+		DECLARE roomNumber				CHAR;
+		DECLARE managerUserId			CHAR;
+		DECLARE contWrkAdmPositionId	CHAR;		
+		DECLARE datbaseAction			CHAR;		
+
+		SET personIdExternal = TRIM(LEFT(inRef.personIdExternal, 32));
+		
+		IF (vIgnore = FALSE) THEN
+			SET userId 					= inRef.employmentNav.results.Item[vEmpAr].userId;	
+			SET initials 				= TRIM(LEFT(inRef.customString10, 128));
+			SET companyCode				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.company, 8));
+			SET locationId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.locationNav.externalCode, 128));	
+			SET department 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.department, 32));
+			SET division				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.division, 32));
+			SET businessUnit			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.businessUnit, 32));	
+			SET orgUnitId 				= TRIM(LEFT(GetOrgunitId(department, division, businessUnit), 32));			
+			SET costCenter 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.costCenter, 32));
+	      	SET standardHours 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.standardHours, 10));
+	      	SET workingDaysPerWeek 		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.workingDaysPerWeek, 10));
+	      	SET fullTimeEquivalent 		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.fte, 10));
+		    SET jobStartDate			= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate);
+			SET isManager				= GetIsManager(inRef.employmentNav.results.Item[vEmpAr].userNav.teamMembersSize);
+			SET eventReason				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.eventReasonNav.name , 100));
+			SET buildingNumber			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom01, 255));
+			SET roomNumber				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom02, 255));
+			SET managerUserId			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.managerUserNav.userId, 100));	
+			
+			-- Get positionId and positionName
+			IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.externalCode = 'T') THEN	
+				SET positionId 		= '99999999';
+			ELSE
+				SET positionId 		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
+				SET positionName 	= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
+			END IF;
+				
+			-- Get employeeClass
+			SET employeeClass = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
+   		  	  	        	  		          	   		FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.picklistLabels.results.Item[] AS r
+	      	  	        	  		          	   		WHERE r.locale = 'en_US'), NULL), 255));			
+						
+			-- Get employeeSubClass
+			SET employeeSubClass = TRIM(LEFT(COALESCE(inRef.employmentNav.results.Item[vEmpAr].workOrderNav.results.Item.workerTypeNav.label_defaultValue, NULL), 255));
+	      	  	        	  		          
+	        IF (employeeSubClass IS NULL) THEN
+	        	SET employeeSubClass = employeeClass;
+	        END IF;	  		          
+	      	  	        	  		          	
+			-- Get employmentType
+			SET employmentType = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
+	   		  	  	        	  		  	  			 FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employmentTypeNav.picklistLabels.results.Item[] AS r
+		      	  	        	  		  	  			 WHERE r.locale = 'en_US'), NULL), 255));	
+	      	 
+			-- Get employmentStatus
+			SET employmentStatus = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
+	   		  	  	        	  		  	  		  	   FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.picklistLabels.results.Item[] AS r
+		      	  	        	  		  	  		  	   WHERE r.locale = 'en_US'), NULL), 255));		
+
+			-- Get senorityDate
+			CALL GetSeniorityDate(globAssign, inRef, vEmpAr, seniorityDate);	
+
+			-- Get lastDateWorked
+			CALL GetLastWorkingDay(inRef, vEmpAr, lastDateWorked);
+			
+			-- Get dateOfContractTerm
+			IF (lastDateWorked IS NOT NULL) THEN
+				SET dateOfContractTerm = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].endDate);
+			END IF;
+			
+			-- Get event
+			SET event = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.label)
+					   		  	  	   FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.eventNav.picklistLabels.results.Item[] AS r
+						      	 	   WHERE r.locale = 'en_US'), 255));
+						      	  
+			-- Get businessEmail							          	   		 
+			SET businessEmail = TRIM(LEFT(LOWER(THE (SELECT ITEM fieldvalue(r.emailAddress)
+					   		  	  	     			 FROM inRef.emailNav.results.Item[] AS r
+						      	  	     			 WHERE r.emailTypeNav.externalCode = 'B')), 100));
+						      	  	     		
+			-- Get businessMobileCountryCode
+			SET businessMobCtryCode = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.countryCode)
+				          	   		 		   		 FROM inRef.phoneNav.results.Item[] AS r
+				          	   		   		   		 WHERE r.phoneTypeNav.externalCode = 'C'), 32));
+				          	   		   
+			-- Get businessMobilePhoneNumber
+			SET businessMobPhoneNbr	= TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.phoneNumber)
+				          	   		 		   		 FROM inRef.phoneNav.results.Item[] AS r
+				          	   		   		   		 WHERE r.phoneTypeNav.externalCode = 'C'), 100));
+						          	   		   						      	  	     				
+			-- Get businessLandlineCountryCode
+			SET businessLandCtryCode = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.countryCode)
+				          	   		 		   	 	  FROM inRef.phoneNav.results.Item[] AS r
+				          	   		   		   	 	  WHERE r.phoneTypeNav.externalCode = 'B'), 32));
+				          	   		   
+			-- Get businessLandlinePhoneNumber
+			SET businessLandPhoneNbr = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.phoneNumber)
+				          	   		 		   		  FROM inRef.phoneNav.results.Item[] AS r
+				          	   		   		   		  WHERE r.phoneTypeNav.externalCode = 'B'), 100));
+			
+			-- Get contingentWorkerAdminPositionId
+			SET contWrkAdmPositionId = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.relatedPosition)
+				          	   		 		   	 	  FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.positionMatrixRelationship.results.Item[] AS r
+				          	   		   		   	 	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
+	      	  	        	  		  					
+			-- Get current employee in table Employment
+			CALL GetCurrentEmpInEmployment(personIdExternal);	
+			
+
+			/* Check if insert new employee information or update current employee information or 
+			   just update lastSyncDate for a current employee */
+			IF (CARDINALITY(Environment.tmp.Employment[]) = 0) THEN
+				SET datbaseAction = 'Insert';
+			ELSEIF (COALESCE(userId, '') <> COALESCE(Environment.tmp.Employment.userId, '') OR
+					COALESCE(initials, '') <> COALESCE(Environment.tmp.Employment.initials, '') OR
+					COALESCE(companyCode, '') <> COALESCE(Environment.tmp.Employment.companyCode, '') OR
+					COALESCE(locationId, '') <> COALESCE(Environment.tmp.Employment.locationId, '') OR
+					COALESCE(orgUnitId, '') <> COALESCE(Environment.tmp.Employment.orgUnitId, '') OR
+					COALESCE(department, '') <> COALESCE(Environment.tmp.Employment.department, '') OR
+					COALESCE(division, '') <> COALESCE(Environment.tmp.Employment.division, '') OR
+					COALESCE(businessUnit, '') <> COALESCE(Environment.tmp.Employment.businessUnit, '') OR
+					COALESCE(positionId, '') <> COALESCE(Environment.tmp.Employment.positionId, '') OR
+					COALESCE(positionName, '') <> COALESCE(Environment.tmp.Employment.positionName, '') OR
+					COALESCE(costCenter, '') <> COALESCE(Environment.tmp.Employment.costCenter, '') OR
+					COALESCE(employeeClass, '') <> COALESCE(Environment.tmp.Employment.employeeClass, '') OR
+					COALESCE(employeeSubClass, '') <> COALESCE(Environment.tmp.Employment.employeeSubClass, '') OR
+					COALESCE(employmentType, '') <> COALESCE(Environment.tmp.Employment.employmentType, '') OR
+					COALESCE(employmentStatus, '') <> COALESCE(Environment.tmp.Employment.employmentStatus, '') OR
+					isManager <> Environment.tmp.Employment.isManager OR
+					COALESCE(seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(jobStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.jobStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(standardHours, '') <> COALESCE(Environment.tmp.Employment.standardHours, '') OR
+					COALESCE(workingDaysPerWeek, '') <> COALESCE(Environment.tmp.Employment.workingDaysPerWeek, '') OR
+					COALESCE(fullTimeEquivalent, '') <> COALESCE(Environment.tmp.Employment.fullTimeEquivalent, '') OR
+					COALESCE(event, '') <> COALESCE(Environment.tmp.Employment.event, '') OR
+					COALESCE(eventReason, '') <> COALESCE(Environment.tmp.Employment.eventReason, '') OR
+					COALESCE(lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(dateOfContractTerm, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.dateOfContractTermination, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(businessEmail, '') <> COALESCE(Environment.tmp.Employment.businessEmail, '') OR
+					COALESCE(businessMobCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessMobileCountryCode, '') OR
+					COALESCE(businessMobPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessMobilePhoneNumber, '') OR
+					COALESCE(businessLandCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessLandlineCountryCode, '') OR
+					COALESCE(businessLandPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessLandlinePhoneNumber, '') OR
+					COALESCE(buildingNumber, '') <> COALESCE(Environment.tmp.Employment.buildingNumber, '') OR
+					COALESCE(roomNumber, '') <> COALESCE(Environment.tmp.Employment.roomNumber, '') OR
+					COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.Employment.managerUserId, '') OR
+					COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Employment.contingentWorkerAdminPositionId, '')) THEN
+				
+				SET datbaseAction = 'Update';				
+				
+			ELSE -- Update existing record with a lastSyncDate
+				UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+				SET lastSyncDate = CURRENT_TIMESTAMP
+				WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+			END IF;
+			
+			-- Insert new Employment information
+			IF (datbaseAction = 'Insert' OR datbaseAction = 'Update') THEN
+				CALL UpsertEmployment(userId,
+								 	  personIdExternal,
+								 	  initials,
+								 	  companyCode,
+								 	  locationId,
+								 	  orgUnitId,
+								 	  department,
+								 	  division,
+								 	  businessUnit,
+								 	  positionId,
+								 	  positionName,
+								 	  costCenter,
+								 	  employeeClass,
+								 	  employeeSubClass,
+								 	  employmentType,
+								 	  employmentStatus,
+								 	  standardHours,
+								 	  workingDaysPerWeek,
+								 	  fullTimeEquivalent,
+								 	  jobStartDate,
+								 	  seniorityDate,
+								 	  lastDateWorked,
+								 	  dateOfContractTerm,
+								 	  event,
+								 	  eventReason,
+								 	  isManager,
+								 	  businessEmail,
+								 	  businessMobCtryCode,
+								 	  businessMobPhoneNbr,
+								 	  businessLandCtryCode,
+								 	  businessLandPhoneNbr,
+								 	  buildingNumber,
+								 	  roomNumber,
+								 	  managerUserId,
+								 	  contWrkAdmPositionId,								 	  
+								 	  datbaseAction);
+			END IF;				          	   		         	        
+		ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
+			
+			-- Get current employee in table Employment
+			CALL GetCurrentEmpInEmployment(personIdExternal);
+			
+			IF (CARDINALITY(Environment.tmp.Employment[]) > 0) THEN
+				UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+				SET lastSyncDate = CURRENT_TIMESTAMP
+				WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+			END IF;
+		END IF;
+	END;
+
+	CREATE PROCEDURE GetCurrentEmpInEmployment(IN personIdExternal CHAR) BEGIN			
+		SET Environment.tmp.Employment[] = 
+		SELECT  T.userId,
+				T.personIdExternal,
+				T.initials,
+				T.companyCode,
+				T.locationId,
+				T.orgUnitId,
+				T.department,
+				T.division,
+				T.businessUnit,
+				T.positionId,
+				T.positionName,
+				T.costCenter,
+				T.employeeClass,
+				T.employeeSubClass,
+				T.employmentType,
+				T.employmentStatus,
+				T.isManager,
+				T.seniorityDate,
+				T.jobStartDate,			
+				T.standardHours,
+				T.workingDaysPerWeek,
+				T.fullTimeEquivalent,
+				T.event,
+				T.eventReason,
+				T.lastDateWorked,
+				T.dateOfContractTermination,			
+				T.businessEmail,
+				T.businessMobileCountryCode,
+				T.businessMobilePhoneNumber,
+				T.businessLandlineCountryCode,
+				T.businessLandlinePhoneNumber,
+				T.buildingNumber,
+				T.roomNumber,
+				T.managerUserId,
+				T.contingentWorkerAdminPositionId
+		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
+		WHERE 	T.personIdExternal = personIdExternal AND 
+				T.recordTodate IS NULL;					
+	END;
+	
+	CREATE PROCEDURE UpsertEmployment(IN userId CHAR,
+								  	  IN personIdExternal CHAR,
+									  IN initials CHAR,
+									  IN companyCode CHAR,
+									  IN locationId CHAR,
+									  IN orgUnitId CHAR,
+									  IN department CHAR,
+									  IN division CHAR,
+									  IN businessUnit CHAR,
+									  IN positionId CHAR,
+									  IN positionName CHAR,
+									  IN costCenter CHAR,
+									  IN employeeClass CHAR,
+									  IN employeeSubClass CHAR,	
+									  IN employmentType CHAR,
+									  IN employmentStatus CHAR,
+									  IN standardHours CHAR,
+									  IN workingDaysPerWeek CHAR,
+									  IN fullTimeEquivalent CHAR,
+									  IN jobStartDate TIMESTAMP,
+									  IN seniorityDate TIMESTAMP,
+									  IN lastDateWorked TIMESTAMP,
+									  IN dateOfContractTerm TIMESTAMP,
+									  IN event CHAR,
+									  IN eventReason CHAR,
+									  IN isManager BOOLEAN,
+									  IN businessEmail CHAR,
+									  IN businessMobCtryCode CHAR,
+									  IN businessMobPhoneNbr CHAR,
+									  IN businessLandCtryCode CHAR,
+									  IN businessLandPhoneNbr CHAR,
+									  IN buildingNumber CHAR,
+									  IN roomNumber CHAR,
+									  IN managerUserId CHAR,
+									  IN contWrkAdmPositionId CHAR,										  			  
+								  	  IN datbaseAction CHAR) BEGIN
+	
+	
+		IF (datbaseAction = 'Update') THEN
+			UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+			SET recordToDate = CURRENT_TIMESTAMP
+			WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+		END IF;
+	
+		INSERT INTO Database.dbo.{TBL_EMPLOYMENT}(userId,
+										   		  personIdExternal,
+										   		  initials,
+										   		  companyCode,
+										   		  locationId,
+										   		  orgUnitId,
+										   		  department,
+										   		  division,
+										   		  businessUnit,
+										   		  positionId,
+										   		  positionName,
+										   		  costCenter,
+										   		  employeeClass,
+										   		  employeeSubClass,
+										   		  employmentType,
+										   		  employmentStatus,
+										   		  standardHours,
+										   		  workingDaysPerWeek,
+										   		  fullTimeEquivalent,
+										   		  jobStartDate,
+										   		  seniorityDate,
+										   		  lastDateWorked,
+										   		  dateOfContractTermination,
+										   		  event,
+										   		  eventReason,
+										   		  isManager,
+										   		  businessEmail,
+										   		  businessMobileCountryCode,
+										   		  businessMobilePhoneNumber,
+										   		  businessLandlineCountryCode,
+										   		  businessLandlinePhoneNumber,
+										   		  buildingNumber,
+										   		  roomNumber,
+										   		  managerUserId,
+										   		  contingentWorkerAdminPositionId,									   		  
+										   		  recordFromDate,
+										   		  recordToDate,
+										   		  lastSyncDate)
+		VALUES (userId,				
+				personIdExternal,
+				initials,
+				companyCode,
+				locationId,
+				orgUnitId,
+				department,
+				division,
+				businessUnit,
+				positionId,
+				positionName,
+				costCenter,
+				employeeClass,
+				employeeSubClass,
+				employmentType,
+				employmentStatus,
+				standardHours,
+				workingDaysPerWeek,
+				fullTimeEquivalent,
+				jobStartDate,
+				seniorityDate,
+				lastDateWorked,
+				dateOfContractTerm,
+				TRIM(event),
+				TRIM(eventReason),
+				isManager,
+				businessEmail,
+				businessMobCtryCode,
+				businessMobPhoneNbr,
+				businessLandCtryCode,
+				businessLandPhoneNbr,
+				buildingNumber,
+				roomNumber,
+				managerUserId,
+				contWrkAdmPositionId,									
+				CURRENT_TIMESTAMP,				--recordFromDate
+				NULL,							--recordToDate
+				CURRENT_TIMESTAMP);				--lastSyncDate	
+	END;
+END MODULE;								  	  				
+

@@ -1,0 +1,95 @@
+BROKER SCHEMA INT0080.COMMON
+
+
+-- Working tables
+DECLARE TBL_SYNCH_LOG CONSTANT CHARACTER 'SynchODdataLog';
+
+
+CREATE PROCEDURE GetConnectionInfo(IN refEnv REFERENCE) 
+BEGIN
+			 		
+	SET refEnv.Conn.Value[] = (SELECT T.URL, T.UNAME, T.PW, T.ISSUED_BY FROM Database.INT0080_MISC AS T);			 
+		
+	-- Throw error if information cannot be found				
+	IF NOT (EXISTS(refEnv.Conn.Value[])) THEN
+		THROW USER EXCEPTION MESSAGE 2961 Values('Could not find any lookup value in table INT0080_MISC!');			
+	END IF;			
+END;
+
+CREATE FUNCTION GetSFTimeStamp(IN value CHAR
+) RETURNS TIMESTAMP BEGIN			 		
+				
+	-- Get real TIMESTAMP based on Unix Epoch time
+	IF (value IS NULL OR value = '') THEN
+		RETURN NULL;
+	ELSE	
+		DECLARE ms CHAR;
+		DECLARE sec INT;
+		DECLARE eTime TIMESTAMP;
+		
+		SET eTime = CAST('1970-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');		
+		SET ms = SUBSTRING(value AFTER '/Date(');
+		SET ms = SUBSTRING(ms BEFORE ')/');
+		SET sec = CAST(ms AS INT)/1000;
+		
+		RETURN eTime + CAST(sec AS INTERVAL SECOND);
+	END IF;
+END;
+
+CREATE PROCEDURE InsertSynchLog(IN vType CHAR,
+								IN vStatus CHAR,
+								IN vSFRootObject CHAR,
+								IN vSFIdField CHAR,
+								IN vSFIdValue CHAR,
+								IN vObject CHAR,
+								IN vEventText CHAR) BEGIN			
+	
+	SET vEventText = LEFT(vEventText, 998);
+	
+	IF (LENGTH(vEventText) = 998) THEN
+		SET vEventText = vEventText || '..';
+	END IF;
+
+			
+	INSERT INTO Database.dbo.{TBL_SYNCH_LOG}(SF_Synch_Time,
+									   	     Type,
+									   	     Status,
+									   	     SF_Root_Object,
+									   	     SF_Id_Field,
+									   	     SF_Id_Value,
+									   	     Object,
+									   	     Event_Text)
+	VALUES (CURRENT_TIMESTAMP,
+			vType,
+			vStatus,
+			vSFRootObject,
+			vSFIdField,
+			vSFIdValue,
+			vObject,
+			vEventText);
+END;
+								
+CREATE COMPUTE MODULE CheckIfMoreToGet
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		DECLARE inRef REFERENCE TO InputRoot.JSON;
+		
+		IF NOT COALESCE(inRef.Data.d.__next, '') = '' THEN
+			SET Environment.SF.Meta.hasMore = true;
+			SET Environment.SF.Meta.Next = inRef.Data.d.__next;
+
+		ELSE
+			SET Environment.SF.Meta.hasMore = false;					
+		END IF;
+		
+		SET Environment.SF.Meta.firstRun 	= false;
+		SET OutputRoot.Properties 			= InputRoot.Properties;
+		
+		-- Propagate message
+		CREATE LASTCHILD OF OutputRoot DOMAIN 'JSON' NAME 'JSON';
+		SET OutputRoot.JSON = InputRoot.JSON;
+		
+		RETURN TRUE;
+	END;
+END MODULE;

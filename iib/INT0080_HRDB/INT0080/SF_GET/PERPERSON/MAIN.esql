@@ -1,0 +1,174 @@
+BROKER SCHEMA INT0080.SF_GET.PERPERSON
+
+
+-- Working tables
+DECLARE TBL_SYNCH_LOG CONSTANT CHARACTER 'SynchODdataLog';
+
+CREATE COMPUTE MODULE GetPerPerson
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE countReq	INT 1;
+		DECLARE sqlc 		CHAR;
+		DECLARE vHost 		CHAR;
+		
+		-- Clean up synch table
+		SET sqlc = 'DELETE FROM ' || TBL_SYNCH_LOG || ' WHERE TYPE = ''Employee''';	
+		PASSTHRU(sqlc);
+		PASSTHRU('COMMIT;');		
+		
+		-- Get URL
+		SET vHost = Environment.Conn.Value.URL; 	
+		
+		-- Set Environment start values
+		SET Environment.SF.Meta.hasMore 	= true;
+		SET Environment.SF.Meta.firstRun 	= true;
+						
+		WHILE (Environment.SF.Meta.hasMore = true AND countReq <= 100) DO
+		
+			SET OutputRoot.Properties.CodedCharSetId 			= 1208;						
+			SET OutputRoot.Properties.IdentitySourceType 		= 'usernameAndPassword';
+			SET OutputRoot.Properties.IdentitySourceToken 		= Environment.Conn.Value.UNAME;
+			SET OutputRoot.Properties.IdentitySourcePassword	= Environment.Conn.Value.PW;
+			SET OutputRoot.Properties.IdentitySourceIssuedBy 	= Environment.Conn.Value.ISSUED_BY;			
+			
+			-- If first run, then run query, else run queryMore
+			IF Environment.SF.Meta.firstRun = true THEN
+				SET Environment.SF.Meta.RequestURL = GetQPerPerson(vHost);					
+				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = GetQPerPerson(vHost);				
+			ELSEIF Environment.SF.Meta.firstRun = false THEN
+				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = Environment.SF.Meta.Next;		
+			END IF;
+			
+			PROPAGATE TO TERMINAL 'out';
+		
+			SET countReq = countReq + 1;	
+		END WHILE;	
+									
+		RETURN FALSE;
+	END;
+
+	CREATE FUNCTION GetQPerPerson(IN vHost CHAR
+	) RETURNS CHAR BEGIN			 		
+		
+		DECLARE vObject CHAR 'PerPerson';
+		DECLARE vSelect CHAR '$select=';
+		DECLARE vExpand CHAR '$expand=';
+		DECLARE vPaging CHAR 'paging=snapshot';
+		DECLARE vCustom CHAR 'customPageSize=1000';		
+		DECLARE vFormat CHAR '$format=json';
+		
+		-- Select
+		SET vSelect = vSelect || 'personIdExternal,';
+		SET vSelect = vSelect || 'customString10,';
+		SET vSelect = vSelect || 'personalInfoNav/displayName,';
+		SET vSelect = vSelect || 'personalInfoNav/lastName,';
+		SET vSelect = vSelect || 'personalInfoNav/gender,';
+		--SET vSelect = vSelect || 'personalInfoNav/endDate,';
+		SET vSelect = vSelect || 'personalInfoNav/nationality,';		
+		SET vSelect = vSelect || 'personalInfoNav/salutationNav/externalCode,';
+		SET vSelect = vSelect || 'personalInfoNav/nativePreferredLangNav/externalCode,';
+		--SET vSelect = vSelect || 'nationalIdNav/nationalId,';
+		--SET vSelect = vSelect || 'nationalIdNav/cardType,';	
+		SET vSelect = vSelect || 'homeAddressNavDEFLT/country,';
+		SET vSelect = vSelect || 'homeAddressNavDEFLT/zipCode,';				
+		SET vSelect = vSelect || 'homeAddressNavDEFLT/address1,';
+		SET vSelect = vSelect || 'homeAddressNavDEFLT/address2,';
+		SET vSelect = vSelect || 'homeAddressNavDEFLT/address3,';
+		SET vSelect = vSelect || 'homeAddressNavDEFLT/address4,';			
+		SET vSelect = vSelect || 'homeAddressNavDEFLT/city,';
+		SET vSelect = vSelect || 'homeAddressNavDEFLT/stateNav/externalCode,';	
+		SET vSelect = vSelect || 'emailNav/emailAddress,';
+		SET vSelect = vSelect || 'emailNav/emailTypeNav/externalCode,';
+		SET vSelect = vSelect || 'phoneNav/countryCode,';
+		SET vSelect = vSelect || 'phoneNav/phoneNumber,';
+		SET vSelect = vSelect || 'phoneNav/phoneTypeNav/externalCode,';									
+		SET vSelect = vSelect || 'employmentNav/startDate,';
+		SET vSelect = vSelect || 'employmentNav/endDate,';
+		SET vSelect = vSelect || 'employmentNav/userId,';
+		SET vSelect = vSelect || 'employmentNav/seniorityDate,';
+		SET vSelect = vSelect || 'employmentNav/lastDateWorked,';
+		SET vSelect = vSelect || 'employmentNav/payrollEndDate,';
+		SET vSelect = vSelect || 'employmentNav/empGlobalAssignmentNav/userId,';
+		SET vSelect = vSelect || 'employmentNav/empGlobalAssignmentNav/endDate,';
+		SET vSelect = vSelect || 'employmentNav/empGlobalAssignmentNav/startDate,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/endDate,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/startDate,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/department,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/division,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/businessUnit,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/company,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/position,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/costCenter,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/payGrade,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/standardHours,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/workingDaysPerWeek,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/fte,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/location,';
+		--SET vSelect = vSelect || 'employmentNav/jobInfoNav/jobCodeNav/name,';						
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/employeeClassNav/externalCode,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/employeeClassNav/picklistLabels/locale,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/employeeClassNav/picklistLabels/label,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/employmentTypeNav/externalCode,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/employmentTypeNav/picklistLabels/locale,';		
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/employmentTypeNav/picklistLabels/label,';		
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/customString4Nav/externalName,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/eventNav/picklistLabels/locale,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/eventNav/picklistLabels/label,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/eventReasonNav/name,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/managerUserNav/userId,';
+		--SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatus,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/externalCode,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels/locale,';		
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels/label,';		
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionEntryDate,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/locationNav/externalCode,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/locationNav/name,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/externalName_defaultValue,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship/relatedPosition,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship/matrixRelationshipType,';			
+		SET vSelect = vSelect || 'employmentNav/userNav/custom01,';
+		SET vSelect = vSelect || 'employmentNav/userNav/custom02,';
+		SET vSelect = vSelect || 'employmentNav/userNav/dateOfBirth,';
+		SET vSelect = vSelect || 'employmentNav/userNav/teamMembersSize,';
+		SET vSelect = vSelect || 'employmentNav/workOrderNav/workerType,';
+		SET vSelect = vSelect || 'employmentNav/workOrderNav/workerTypeNav/label_defaultValue,';
+
+
+		-- Expand
+		SET vExpand = vExpand || 'emailNav/emailTypeNav,';
+		SET vExpand = vExpand || 'phoneNav/phoneTypeNav,';		
+		SET vExpand = vExpand || 'personalInfoNav/salutationNav,';
+		SET vExpand = vExpand || 'personalInfoNav/nativePreferredLangNav,';
+		--SET vExpand = vExpand || 'nationalIdNav,';
+		SET vExpand = vExpand || 'homeAddressNavDEFLT/stateNav,';		
+		SET vExpand = vExpand || 'employmentNav/empGlobalAssignmentNav,';
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/employeeClassNav/picklistLabels,';		
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/employmentTypeNav/picklistLabels,';
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/customString4Nav,';	
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/eventReasonNav,';
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/eventNav/picklistLabels,';
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels,';
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/locationNav,';
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/managerUserNav,';	
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship,';
+		--SET vExpand = vExpand || 'employmentNav/jobInfoNav/jobCodeNav,';
+		SET vExpand = vExpand || 'employmentNav/userNav,';
+		SET vExpand = vExpand || 'employmentNav/workOrderNav,';
+		SET vExpand = vExpand || 'employmentNav/workOrderNav/workerTypeNav';	
+	
+		RETURN vHost || vObject || '?' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
+		
+		--RETURN vHost || vObject || '?' || '$filter=personIdExternal eq ''882609''&' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
+		
+
+	
+	END;
+END MODULE;
+
+CREATE FILTER MODULE GetConn
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		CALL INT0080.COMMON.GetConnectionInfo(Environment);
+		RETURN TRUE;
+	END;
+END MODULE;
