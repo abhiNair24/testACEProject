@@ -3,6 +3,7 @@
 	<name>INT0080_HRDB</name>
 	<comment></comment>
 	<projects>
+		<project>ICC_FRAMEWORK</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

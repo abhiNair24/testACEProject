@@ -22,25 +22,23 @@ CREATE COMPUTE MODULE ProcessLocation
 
 	CREATE PROCEDURE MapLocation(IN inRef REFERENCE) BEGIN
 		
-		WHILE LASTMOVE(inRef) DO	
-			DECLARE vIgnore BOOLEAN FALSE;		
+		WHILE LASTMOVE(inRef) DO
 
 			-- Incase of error then easier to identify which row that was in error
 			SET Environment.locationId = inRef.externalCode;
 					
 			-- Process Location	
-			CALL ProcessLocation(inRef, vIgnore);			
+			CALL ProcessLocation(inRef);			
 												
 			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
 		END WHILE;	
 
 	END;
 
-	CREATE PROCEDURE ProcessLocation(IN inRef REFERENCE,
-									 INOUT vIgnore BOOLEAN) BEGIN
+	CREATE PROCEDURE ProcessLocation(IN inRef REFERENCE) BEGIN
 	
 		DECLARE locationId 		CHAR;
-		DECLARE locationName 	CHAR;
+		DECLARE name		 	CHAR;
 		DECLARE companyCode 	CHAR;
 		DECLARE timezone 		CHAR;
 		DECLARE country 		CHAR;
@@ -56,7 +54,7 @@ CREATE COMPUTE MODULE ProcessLocation
 		DECLARE datbaseAction	CHAR;
 		
 		SET locationId			= TRIM(LEFT(inRef.externalCode, 32));
-		SET locationName		= TRIM(LEFT(inRef.name, 32));
+		SET name				= TRIM(LEFT(inRef.name, 32));
 		SET companyCode			= TRIM(LEFT(inRef.companyFlxNav.results.Item.externalCode, 8));
 		SET timezone			= TRIM(LEFT(inRef.timezone, 256));
 		SET country				= TRIM(LEFT(inRef.addressNavDEFLT.country, 256));
@@ -78,7 +76,7 @@ CREATE COMPUTE MODULE ProcessLocation
 		   just update lastSyncDate for a current location */
 		IF (CARDINALITY(Environment.tmp.Location[]) = 0) THEN
 			SET datbaseAction = 'Insert';
-		ELSEIF (COALESCE(locationName, '') <> COALESCE(Environment.tmp.Location.locationName, '') OR
+		ELSEIF (COALESCE(name, '') <> COALESCE(Environment.tmp.Location.name, '') OR
 				COALESCE(companyCode, '') <> COALESCE(Environment.tmp.Location.companyCode, '') OR
 				COALESCE(country, '') <> COALESCE(Environment.tmp.Location.country, '') OR
 				COALESCE(timezone, '') <> COALESCE(Environment.tmp.Location.timezone, '') OR				
@@ -96,7 +94,7 @@ CREATE COMPUTE MODULE ProcessLocation
 			
 		IF (datbaseAction = 'Insert') THEN
 			CALL InsertLocation(locationId,
-							    locationName,
+							    name,
 							    companyCode,
 							    timezone,
 							    country,
@@ -111,7 +109,7 @@ CREATE COMPUTE MODULE ProcessLocation
 							    status);
 		ELSEIF (datbaseAction = 'Update') THEN
 			CALL UpdateLocation(locationId,
-							    locationName,
+							    name,
 							    companyCode,
 							    timezone,
 							    country,
@@ -136,7 +134,7 @@ CREATE COMPUTE MODULE ProcessLocation
 	CREATE PROCEDURE GetCurrentLocInLocation(IN locationId CHAR) BEGIN			
 		SET Environment.tmp.Location[] = 
 		SELECT  T.locationId,
-				T.locationName,
+				T.name,
 				T.companyCode,
 				T.timezone,
 				T.country,
@@ -154,7 +152,7 @@ CREATE COMPUTE MODULE ProcessLocation
 	END;
 
 	CREATE PROCEDURE InsertLocation(IN locationId CHAR,
-								    IN locationName CHAR,
+								    IN name CHAR,
 								    IN companyCode CHAR,
 								    IN timezone CHAR,
 								    IN country CHAR,
@@ -169,7 +167,7 @@ CREATE COMPUTE MODULE ProcessLocation
 								    IN status CHAR) BEGIN
 
 		INSERT INTO Database.dbo.{TBL_LOC}(locationId,
-										   locationName,
+										   name,
 										   companyCode,
 										   timezone,
 										   country,
@@ -185,7 +183,7 @@ CREATE COMPUTE MODULE ProcessLocation
 										   recordLastUpdated,
 										   lastSyncDate)
 		VALUES (locationId,			
-				locationName,					
+				name,					
 				companyCode,
 				timezone,
 				country,			
@@ -203,7 +201,7 @@ CREATE COMPUTE MODULE ProcessLocation
 	END;
 
 	CREATE PROCEDURE UpdateLocation(IN locationId CHAR,
-								    IN locationName CHAR,
+								    IN name CHAR,
 								    IN companyCode CHAR,
 								    IN timezone CHAR,
 								    IN country CHAR,
@@ -218,7 +216,7 @@ CREATE COMPUTE MODULE ProcessLocation
 								    IN status CHAR) BEGIN
 
 		UPDATE Database.dbo.{TBL_LOC} AS T
-		SET locationName 		= locationName, 
+		SET name 				= name, 
 			companyCode 		= companyCode,
 			timezone			= timezone, 
 			country 			= country,

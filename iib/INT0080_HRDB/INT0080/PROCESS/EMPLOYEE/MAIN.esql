@@ -1,8 +1,8 @@
 BROKER SCHEMA INT0080.PROCESS.EMPLOYEE
 
 -- Working tables
-DECLARE TBL_PERSON		CONSTANT CHARACTER 'Person';
-DECLARE TBL_EMPLOYMENT	CONSTANT CHARACTER 'Employment';
+DECLARE TBL_PERSON		CONSTANT CHARACTER 'EmpPerson';
+DECLARE TBL_EMPLOYMENT	CONSTANT CHARACTER 'EmpEmployment';
 
 
 CREATE COMPUTE MODULE ProcessEmployee
@@ -694,14 +694,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET buildingNumber			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom01, 255));
 			SET roomNumber				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom02, 255));
 			SET managerUserId			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.managerUserNav.userId, 100));	
-			
-			-- Get positionId and positionName
-			IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.externalCode = 'T') THEN	
-				SET positionId 		= '99999999';
-			ELSE
-				SET positionId 		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
-				SET positionName 	= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
-			END IF;
+			SET positionId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
+			SET positionName 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
+
 				
 			-- Get employeeClass
 			SET employeeClass = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
@@ -725,7 +720,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 	   		  	  	        	  		  	  		  	   FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.picklistLabels.results.Item[] AS r
 		      	  	        	  		  	  		  	   WHERE r.locale = 'en_US'), NULL), 255));		
 
-			-- Get senorityDate
+			-- Get seniorityDate
 			CALL GetSeniorityDate(globAssign, inRef, vEmpAr, seniorityDate);	
 
 			-- Get lastDateWorked

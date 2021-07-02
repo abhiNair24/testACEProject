@@ -1,0 +1,139 @@
+BROKER SCHEMA INT0080.PROCESS.COUNTRY
+
+-- Working tables
+DECLARE TBL_COUNT CONSTANT CHARACTER 'Country';
+
+
+CREATE COMPUTE MODULE ProcessCountry
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN		
+		
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
+		
+		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
+			CALL MapCountry(inRef);
+			SET OutputRoot.XMLNSC.Info = 'Country sucessfully processed.';	
+		ELSE
+			SET OutputRoot.XMLNSC.Info = 'No data found in input message.';			
+			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
+		END IF;
+			
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE MapCountry(IN inRef REFERENCE) BEGIN
+		
+		WHILE LASTMOVE(inRef) DO		
+
+			-- Incase of error then easier to identify which row that was in error
+			SET Environment.countryCode = inRef.code;
+					
+			-- Process Country	
+			CALL ProcessCountry(inRef);			
+												
+			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+		END WHILE;	
+
+	END;
+	
+
+	CREATE PROCEDURE ProcessCountry(IN inRef REFERENCE) BEGIN	
+		
+		DECLARE countryCode 		CHAR;
+		DECLARE name 				CHAR;
+		DECLARE twoCharCountryCode 	CHAR;
+		DECLARE currency 			CHAR;
+		DECLARE status		 		CHAR;
+		DECLARE datbaseAction		CHAR;
+		
+		SET countryCode				= TRIM(LEFT(inRef.code, 128));
+		SET name					= TRIM(LEFT(inRef.externalName_defaultValue, 255));
+		SET twoCharCountryCode		= TRIM(LEFT(inRef.twoCharCountryCode, 255));
+		SET currency				= TRIM(LEFT(inRef.currency, 128));
+		SET status					= TRIM(LEFT(inRef.status, 2));
+				
+						
+		-- Get current country in table Country
+		CALL GetCurrentCountInCountry(countryCode);
+		
+		/* Check if insert new country information or update current country information or 
+		   just update lastSyncDate for a country */
+		IF (CARDINALITY(Environment.tmp.Country[]) = 0) THEN
+			SET datbaseAction = 'Insert';
+		ELSEIF (COALESCE(name, '') <> COALESCE(Environment.tmp.Country.name, '') OR
+				COALESCE(twoCharCountryCode, '') <> COALESCE(Environment.tmp.Country.twoCharCountryCode, '') OR
+				COALESCE(currency, '') <> COALESCE(Environment.tmp.Country.currency, '') OR
+				COALESCE(status, '') <> COALESCE(Environment.tmp.Country.status, '')) THEN
+			SET datbaseAction = 'Update';
+		END IF;		
+			
+		IF (datbaseAction = 'Insert') THEN
+			CALL InsertCountry(countryCode,
+							   name,
+							   twoCharCountryCode,
+							   currency,
+							   status);
+		ELSEIF (datbaseAction = 'Update') THEN
+			CALL UpdateCountry(countryCode,
+							   name,
+							   twoCharCountryCode,
+							   currency,
+							   status);
+		ELSE -- Update existing record with a lastSyncDate
+			UPDATE Database.dbo.{TBL_COUNT} AS T 
+			SET lastSyncDate = CURRENT_TIMESTAMP
+			WHERE T.countryCode = countryCode;
+		END IF;																
+	END;
+
+	CREATE PROCEDURE GetCurrentCountInCountry(IN countryCode CHAR) BEGIN			
+		SET Environment.tmp.Country[] = 
+		SELECT  T.countryCode,
+				T.name,
+				T.twoCharCountryCode,
+				T.currency,
+				T.status
+		FROM 	Database.dbo.{TBL_COUNT} AS T 
+		WHERE 	T.countryCode = countryCode;					
+	END;
+
+	CREATE PROCEDURE InsertCountry(IN countryCode CHAR,
+								   IN name CHAR,
+								   IN twoCharCountryCode CHAR,
+								   IN currency CHAR,
+								   IN status CHAR) BEGIN
+
+		INSERT INTO Database.dbo.{TBL_COUNT}(countryCode,
+											 name,
+											 twoCharCountryCode,
+											 currency,
+											 status,
+											 recordLastUpdated,
+											 lastSyncDate)
+		VALUES (countryCode,
+				name,
+				twoCharCountryCode,
+				currency,
+				status,															
+				CURRENT_TIMESTAMP,			--recordLastUpdated
+				CURRENT_TIMESTAMP);			--lastSyncDate
+	END;
+
+	CREATE PROCEDURE UpdateCountry(IN countryCode CHAR,
+								   IN name CHAR,
+								   IN twoCharCountryCode CHAR,
+								   IN currency CHAR,
+								   IN status CHAR) BEGIN
+
+		UPDATE Database.dbo.{TBL_COUNT} AS T
+		SET countryCode 		= countryCode, 
+			name 				= name, 
+			twoCharCountryCode 	= twoCharCountryCode,
+			currency 			= currency,
+			status 				= status,
+			recordLastUpdated 	= CURRENT_TIMESTAMP,
+			lastSyncDate	 	= CURRENT_TIMESTAMP
+		WHERE T.countryCode = countryCode;
+
+	END;
+END MODULE;

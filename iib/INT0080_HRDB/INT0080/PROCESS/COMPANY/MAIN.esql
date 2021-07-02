@@ -1,0 +1,139 @@
+BROKER SCHEMA INT0080.PROCESS.COMPANY
+
+-- Working tables
+DECLARE TBL_COMP CONSTANT CHARACTER 'Company';
+
+
+CREATE COMPUTE MODULE ProcessCompany
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN		
+		
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
+		
+		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
+			CALL MapCompany(inRef);
+			SET OutputRoot.XMLNSC.Info = 'Company sucessfully processed.';	
+		ELSE
+			SET OutputRoot.XMLNSC.Info = 'No data found in input message.';			
+			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
+		END IF;
+			
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE MapCompany(IN inRef REFERENCE) BEGIN
+		
+		WHILE LASTMOVE(inRef) DO		
+
+			-- Incase of error then easier to identify which row that was in error
+			SET Environment.companyCode = inRef.externalCode;
+					
+			-- Process tblComp	
+			CALL ProcessCompany(inRef);			
+												
+			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+		END WHILE;	
+
+	END;
+	
+
+	CREATE PROCEDURE ProcessCompany(IN inRef REFERENCE) BEGIN	
+		
+		DECLARE companyCode 		CHAR;
+		DECLARE name 				CHAR;
+		DECLARE country 			CHAR;
+		DECLARE defaultLocationId 	CHAR;
+		DECLARE status		 		CHAR;
+		DECLARE datbaseAction		CHAR;
+		
+		SET companyCode				= TRIM(LEFT(inRef.externalCode, 8));
+		SET name					= TRIM(LEFT(inRef.cust_longname_defaultValue, 255));
+		SET country					= TRIM(LEFT(inRef.country, 128));
+		SET defaultLocationId		= TRIM(LEFT(inRef.defaultLocation, 32));
+		SET status					= TRIM(LEFT(inRef.status, 2));
+				
+						
+		-- Get current company in table Company
+		CALL GetCurrentCompInCompany(companyCode);
+		
+		/* Check if insert new company information or update current company information or 
+		   just update lastSyncDate for a current company */
+		IF (CARDINALITY(Environment.tmp.Company[]) = 0) THEN
+			SET datbaseAction = 'Insert';
+		ELSEIF (COALESCE(name, '') <> COALESCE(Environment.tmp.Company.name, '') OR
+				COALESCE(country, '') <> COALESCE(Environment.tmp.Company.country, '') OR
+				COALESCE(defaultLocationId, '') <> COALESCE(Environment.tmp.Company.defaultLocationId, '') OR
+				COALESCE(status, '') <> COALESCE(Environment.tmp.Company.status, '')) THEN
+			SET datbaseAction = 'Update';
+		END IF;		
+			
+		IF (datbaseAction = 'Insert') THEN
+			CALL InsertCompany(companyCode,
+							   name,
+							   country,
+							   defaultLocationId,
+							   status);
+		ELSEIF (datbaseAction = 'Update') THEN
+			CALL UpdateCompany(companyCode,
+							   name,
+							   country,
+							   defaultLocationId,
+							   status);
+		ELSE -- Update existing record with a lastSyncDate
+			UPDATE Database.dbo.{TBL_COMP} AS T 
+			SET lastSyncDate = CURRENT_TIMESTAMP
+			WHERE T.companyCode = companyCode;
+		END IF;																
+	END;
+
+	CREATE PROCEDURE GetCurrentCompInCompany(IN companyCode CHAR) BEGIN			
+		SET Environment.tmp.Company[] = 
+		SELECT  T.companyCode,
+				T.name,
+				T.country,
+				T.defaultLocationId,
+				T.status
+		FROM 	Database.dbo.{TBL_COMP} AS T 
+		WHERE 	T.companyCode = companyCode;					
+	END;
+
+	CREATE PROCEDURE InsertCompany(IN companyCode CHAR,
+								   IN name CHAR,
+								   IN country CHAR,
+								   IN defaultLocationId CHAR,
+								   IN status CHAR) BEGIN
+
+		INSERT INTO Database.dbo.{TBL_COMP}(companyCode,
+											name,
+											country,
+											defaultLocationId,
+											status,
+											recordLastUpdated,
+											lastSyncDate)
+		VALUES (companyCode,
+				name,
+				country,
+				defaultLocationId,
+				status,															
+				CURRENT_TIMESTAMP,			--recordLastUpdated
+				CURRENT_TIMESTAMP);			--lastSyncDate
+	END;
+
+	CREATE PROCEDURE UpdateCompany(IN companyCode CHAR,
+								   IN name CHAR,
+								   IN country CHAR,
+								   IN defaultLocationId CHAR,
+								   IN status CHAR) BEGIN
+
+		UPDATE Database.dbo.{TBL_COMP} AS T
+		SET companyCode 		= companyCode, 
+			name 				= name, 
+			country 			= country,
+			defaultLocationId 	= defaultLocationId,
+			status 				= status,
+			recordLastUpdated 	= CURRENT_TIMESTAMP,
+			lastSyncDate	 	= CURRENT_TIMESTAMP
+		WHERE T.companyCode = companyCode;
+
+	END;
+END MODULE;
