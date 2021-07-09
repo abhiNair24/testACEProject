@@ -1,6 +1,7 @@
-BROKER SCHEMA INT0080.SF_GET.FO_DEPARTMENT
+BROKER SCHEMA INT0080.SF_GET.FO_DIVISION
 
-CREATE COMPUTE MODULE GetFODepartment
+
+CREATE COMPUTE MODULE GetFODivision
 	CREATE FUNCTION Main() RETURNS BOOLEAN
 	BEGIN
 		DECLARE countReq	INT 1;
@@ -28,8 +29,8 @@ CREATE COMPUTE MODULE GetFODepartment
 			
 			-- If first run, then run query, else run queryMore
 			IF Environment.SF.Meta.firstRun = true THEN
-				SET Environment.SF.Meta.RequestURL = GetQFODepartment(vHost);
-				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = GetQFODepartment(vHost);				
+				SET Environment.SF.Meta.RequestURL = GetQFODivision(vHost);
+				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = GetQFODivision(vHost);				
 			ELSEIF Environment.SF.Meta.firstRun = false THEN
 				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = Environment.SF.Meta.Next;		
 			END IF;
@@ -50,10 +51,10 @@ CREATE COMPUTE MODULE GetFODepartment
 		RETURN FALSE;	
 	END;
 
-	CREATE FUNCTION GetQFODepartment(IN vHost CHAR
+	CREATE FUNCTION GetQFODivision(IN vHost CHAR
 	) RETURNS CHAR BEGIN			 		
 		
-		DECLARE vObject CHAR 'FODepartment';
+		DECLARE vObject CHAR 'FODivision';
 		DECLARE vSelect CHAR '$select=';
 		DECLARE vExpand CHAR '$expand=';
 		DECLARE vPaging CHAR 'paging=snapshot';
@@ -62,15 +63,14 @@ CREATE COMPUTE MODULE GetFODepartment
 		
 		-- Select
 		SET vSelect = vSelect || 'externalCode,';
-		SET vSelect = vSelect || 'name,';		
-		SET vSelect = vSelect || 'parent,';					
-		SET vSelect = vSelect || 'cust_toDivision/externalCode,';
-		SET vSelect = vSelect || 'costCenter,';
+		SET vSelect = vSelect || 'name,';						
+		SET vSelect = vSelect || 'cust_toBusinessUnit/externalCode,';
+		SET vSelect = vSelect || 'cust_costCenter,';
 		SET vSelect = vSelect || 'headOfUnit,';
 		SET vSelect = vSelect || 'status';	
 				
 		-- Expand
-		SET vExpand = vExpand || 'cust_toDivision,';
+		SET vExpand = vExpand || 'cust_toBusinessUnit,';
 		
 		RETURN vHost || vObject || '?' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
 		

@@ -14,10 +14,10 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 				CALL MapDepartmentToOrg(inRef);
 				SET OutputRoot.XMLNSC.Info = 'FODepartment to Org sucessfully processed.';	
 			ELSEIF (inRef.__metadata.type = 'SFOData.FODivision') THEN
-				--CALL MapDivisionToOrg(inRef);
+				CALL MapDivisionToOrg(inRef);
 				SET OutputRoot.XMLNSC.Info = 'FODivision to Org sucessfully processed.';	
 			ELSEIF (inRef.__metadata.type = 'SFOData.FOBusinessUnit') THEN
-				--CALL MapBusinessUnitToOrg(inRef);
+				CALL MapBusinessUnitToOrg(inRef);
 				SET OutputRoot.XMLNSC.Info = 'FOBusinessUnit to Org sucessfully processed.';	
 			ELSE
 				THROW USER EXCEPTION MESSAGE 2951 VALUES('Only JSON message metadata type ''SFOData.FODepartment'', ''SFOData.FODivision'' or ''SFOData.FOBusinessUnit'' allowed!');
@@ -53,158 +53,108 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET status 				= TRIM(LEFT(inRef.status, 2));
 			
 			IF (inRef.parent IS NULL) THEN
-				SET orgUnitParent = COALESCE(inRef.cust_toDivision.results.Item.externalCode, NULL);
+				SET orgUnitParent = TRIM(LEFT(COALESCE(inRef.cust_toDivision.results.Item.externalCode, NULL), 32));
 			ELSE
-				SET orgUnitParent = inRef.parent;
+				SET orgUnitParent = TRIM(LEFT(inRef.parent, 32));
 			END IF;			
 
-			-- Process tblOrg	
-			CALL ProcessTblOrg(orgUnitId, 
-							   name, 
-							   orgUnitType,
-							   orgUnitParent,
-							   costCenter,
-							   headOfUnitUserId,
-							   status);
+			-- Process table OrgUnit	
+			CALL ProcessOrgUnit(orgUnitId, 
+							    name, 
+							    orgUnitType,
+							    orgUnitParent,
+							    costCenter,
+							    headOfUnitUserId,
+							    status);
 												
 			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
 		END WHILE;	
 	END;
 
---	CREATE PROCEDURE MapDivisionToOrg(IN inRef REFERENCE) BEGIN
---		
---		WHILE LASTMOVE(inRef) DO	
---			DECLARE vIgnore 			BOOLEAN FALSE;
---			DECLARE orgUnitID 			INT;
---			DECLARE orgUnitShortName 	CHAR;
---			DECLARE orgUnitLongName 	CHAR;		
---			DECLARE orgUnitPlacement 	CHAR;
---			DECLARE orgUnitCountryCode	CHAR;
---			DECLARE orgUnitCompanyCode	CHAR;			
---			DECLARE orgType 			CHAR;
---			DECLARE status 				CHAR;
---			DECLARE managerInitials		CHAR;
---
---			-- Incase of error then easier to identify which row that was in error
---			SET Environment.OrgUnitID = inRef.externalCode;
---			
---			-- Map division to OrgUnit
---			SET orgUnitID 			= inRef.externalCode;
---			SET orgUnitShortName 	= INT0079.COMMON.GetCostCenter(inRef.cust_costCenter);
---			SET orgUnitLongName 	= LEFT(inRef.name, 40);
---			SET orgUnitCountryCode	= COALESCE(INT0079.COMMON.GetCountryISO(inRef.cust_costCenterNav.cust_toCompany.results.Item.defaultLocationNav.addressNavDEFLT.country), '');
---			SET orgUnitCompanyCode	= COALESCE(inRef.cust_costCenterNav.cust_toCompany.results.Item.externalCode, '');				
---			SET orgType 			= 'Division';
---			SET status 				= inRef.status;
---			SET managerInitials		= inRef.headOfUnitNav.empInfo.personNav.customString10;			
---			SET orgUnitPlacement 	= inRef.cust_toBusinessUnit.results.Item.externalCode;
---			
---			-- Special mapping CC 0103, remove ISO chars for CC 0103
---			IF (STARTSWITH(orgUnitCompanyCode, '0103')) THEN
---				SET orgUnitCompanyCode	= '0103';
---			END IF;			
---			
---			-- Validate
---			CALL Validate(orgUnitID,
---						  orgUnitShortName,
---						  orgUnitLongName,
---						  orgUnitPlacement,
---						  'FODivision',
---						  vIgnore);		
---								
---			-- Process tblOrg	
---			CALL ProcessTblOrg(orgUnitID, 
---							   orgUnitShortName, 
---							   orgUnitLongName,
---							   orgUnitPlacement,
---							   orgUnitCountryCode,
---							   orgUnitCompanyCode,							   
---							   orgType,
---							   status,
---							   vIgnore);
---			
---			IF (vIgnore = FALSE) THEN
---				-- Process tblOrgExt	
---				CALL ProcessTblOrgExt(orgUnitID, managerInitials);				
---			END IF;
---												
---			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
---		END WHILE;	
---	END;
---
---	CREATE PROCEDURE MapBusinessUnitToOrg(IN inRef REFERENCE) BEGIN
---		
---		WHILE LASTMOVE(inRef) DO	
---			DECLARE vIgnore 			BOOLEAN FALSE;
---			DECLARE orgUnitID 			INT;
---			DECLARE orgUnitShortName 	CHAR;
---			DECLARE orgUnitLongName 	CHAR;		
---			DECLARE orgUnitPlacement 	CHAR;
---			DECLARE orgUnitCountryCode	CHAR;
---			DECLARE orgUnitCompanyCode	CHAR;			
---			DECLARE orgType 			CHAR;
---			DECLARE status 				CHAR;
---			DECLARE managerInitials		CHAR;
---
---			-- Incase of error then easier to identify which row that was in error
---			SET Environment.OrgUnitID = inRef.externalCode;
---			
---			-- Map business unit to OrgUnit
---			SET orgUnitID 			= inRef.externalCode;
---			SET orgUnitShortName 	= INT0079.COMMON.GetCostCenter(inRef.cust_costCenter);
---			SET orgUnitLongName 	= LEFT(inRef.name, 40);
---			SET orgUnitCountryCode	= COALESCE(INT0079.COMMON.GetCountryISO(inRef.cust_costCenterNav.cust_toCompany.results.Item.defaultLocationNav.addressNavDEFLT.country), '');
---			SET orgUnitCompanyCode	= COALESCE(inRef.cust_costCenterNav.cust_toCompany.results.Item.externalCode, '');	
---			SET orgType 			= 'BusinessUnit';
---			SET status 				= inRef.status;
---			SET managerInitials		= inRef.headOfUnitNav.empInfo.personNav.customString10;			
---			SET orgUnitPlacement 	= inRef.cust_toBusinessUnit.externalCode;
---			
---			-- Special mapping CC 0103, remove ISO chars for CC 0103
---			IF (STARTSWITH(orgUnitCompanyCode, '0103')) THEN
---				SET orgUnitCompanyCode	= '0103';
---			END IF;			
---			
---			-- Validate
---			CALL Validate(orgUnitID,
---						  orgUnitShortName,
---						  orgUnitLongName,
---						  orgUnitPlacement,
---						  'FOBusinessUnit',
---						  vIgnore);		
---								
---			-- Process tblOrg	
---			CALL ProcessTblOrg(orgUnitID, 
---							   orgUnitShortName, 
---							   orgUnitLongName,
---							   orgUnitPlacement,
---							   orgUnitCountryCode,
---							   orgUnitCompanyCode,							   
---							   orgType,
---							   status,
---							   vIgnore);
---			
---			IF (vIgnore = FALSE) THEN
---				-- Process tblOrgExt	
---				CALL ProcessTblOrgExt(orgUnitID, managerInitials);				
---			END IF;
---												
---			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
---		END WHILE;	
---	END;
+	CREATE PROCEDURE MapDivisionToOrg(IN inRef REFERENCE) BEGIN
+		
+		WHILE LASTMOVE(inRef) DO	
+			DECLARE orgUnitId 			CHAR;
+			DECLARE name			 	CHAR;
+			DECLARE orgUnitType 		CHAR;		
+			DECLARE orgUnitParent	 	CHAR;
+			DECLARE costCenter			CHAR;
+			DECLARE headOfUnitUserId	CHAR;
+			DECLARE status	 			CHAR;
+
+			-- Incase of error then easier to identify which row that was in error
+			SET Environment.OrgUnitID = inRef.externalCode;
+			
+			-- Map division to OrgUnit
+			SET orgUnitId 			= TRIM(LEFT(inRef.externalCode, 32));
+			SET name 				= TRIM(LEFT(inRef.name, 90));
+			SET orgUnitType 		= 'Division';			
+			SET costCenter			= TRIM(LEFT(inRef.cust_costCenter, 90));
+			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
+			SET status 				= TRIM(LEFT(inRef.status, 2));
+			SET orgUnitParent 		= TRIM(LEFT(COALESCE(inRef.cust_toBusinessUnit.results.Item.externalCode, NULL), 32));		
+
+			-- Process table OrgUnit	
+			CALL ProcessOrgUnit(orgUnitId, 
+							    name, 
+							    orgUnitType,
+							    orgUnitParent,
+							    costCenter,
+							    headOfUnitUserId,
+							    status);
+												
+			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+		END WHILE;
+	END;
+
+	CREATE PROCEDURE MapBusinessUnitToOrg(IN inRef REFERENCE) BEGIN
+		
+		WHILE LASTMOVE(inRef) DO	
+			DECLARE orgUnitId 			CHAR;
+			DECLARE name			 	CHAR;
+			DECLARE orgUnitType 		CHAR;		
+			DECLARE orgUnitParent	 	CHAR;
+			DECLARE costCenter			CHAR;
+			DECLARE headOfUnitUserId	CHAR;
+			DECLARE status	 			CHAR;
+
+			-- Incase of error then easier to identify which row that was in error
+			SET Environment.OrgUnitID = inRef.externalCode;
+			
+			-- Map division to OrgUnit
+			SET orgUnitId 			= TRIM(LEFT(inRef.externalCode, 32));
+			SET name 				= TRIM(LEFT(inRef.name, 90));
+			SET orgUnitType 		= 'BusinessUnit';			
+			SET costCenter			= TRIM(LEFT(inRef.cust_costCenter, 90));
+			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
+			SET status 				= TRIM(LEFT(inRef.status, 2));
+			SET orgUnitParent 		= TRIM(LEFT(COALESCE(inRef.cust_toBusinessUnit.externalCode, NULL), 32));		
+
+			-- Process table OrgUnit	
+			CALL ProcessOrgUnit(orgUnitId, 
+							    name, 
+							    orgUnitType,
+							    orgUnitParent,
+							    costCenter,
+							    headOfUnitUserId,
+							    status);
+												
+			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+		END WHILE;
+	END;
 								   
-	CREATE PROCEDURE ProcessTblOrg(IN orgUnitId CHAR, 
-								   IN name CHAR, 
-								   IN orgUnitType CHAR,
-								   IN orgUnitParent CHAR,
-							   	   IN costCenter CHAR,
-							   	   IN headOfUnitUserId CHAR,
-								   IN status CHAR) BEGIN				
+	CREATE PROCEDURE ProcessOrgUnit(IN orgUnitId CHAR, 
+								    IN name CHAR, 
+								    IN orgUnitType CHAR,
+								    IN orgUnitParent CHAR,
+							   	    IN costCenter CHAR,
+							   	    IN headOfUnitUserId CHAR,
+								    IN status CHAR) BEGIN				
 		
 		DECLARE datbaseAction	CHAR;		
 		
 	
-		-- Get current org unit in tblOrg
+		-- Get current org unit in table OrgUnit
 		CALL GetCurrentOrgUnitInOrgUnit(orgUnitId);
 		
 		/* Check if insert new org unit information or update current org unit information or 
@@ -221,22 +171,22 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 		END IF;			
 				
 		IF (datbaseAction = 'Insert') THEN
-			CALL InsertTblOrg(orgUnitId, 
-						   	  name, 
-						   	  orgUnitType,
-						   	  orgUnitParent,
-							  costCenter,
-							  headOfUnitUserId,
+			CALL InsertOrgUnit(orgUnitId, 
+						   	   name, 
+						   	   orgUnitType,
+						   	   orgUnitParent,
+							   costCenter,
+							   headOfUnitUserId,
 						   	  status);
 		ELSEIF (datbaseAction = 'Update') THEN
-			CALL UpdateTblOrg(orgUnitId, 
-						   	  name, 
-						   	  orgUnitType,
-						   	  orgUnitParent,
-							  costCenter,
-							  headOfUnitUserId,
-						   	  status);
-		ELSE -- Update existing record with a LastSyncDate
+			CALL UpdateOrgUnit(orgUnitId, 
+						   	   name, 
+						   	   orgUnitType,
+						   	   orgUnitParent,
+							   costCenter,
+							   headOfUnitUserId,
+						   	   status);
+		ELSE -- Update existing record with a lastSyncDate
 			UPDATE Database.dbo.{TBL_ORG} AS T 
 			SET lastSyncDate = CURRENT_TIMESTAMP
 			WHERE T.orgUnitId = orgUnitId;
@@ -256,13 +206,13 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 		WHERE 	T.orgUnitId = orgUnitId;					
 	END;
 
-	CREATE PROCEDURE InsertTblOrg(IN orgUnitId CHAR,
-								  IN name CHAR,
-								  IN orgUnitType CHAR,
-								  IN orgUnitParent CHAR,
-							   	  IN costCenter CHAR,
-							   	  IN headOfUnitUserId CHAR,								  
-								  IN status CHAR) BEGIN
+	CREATE PROCEDURE InsertOrgUnit(IN orgUnitId CHAR,
+								   IN name CHAR,
+								   IN orgUnitType CHAR,
+								   IN orgUnitParent CHAR,
+							   	   IN costCenter CHAR,
+							   	   IN headOfUnitUserId CHAR,								  
+								   IN status CHAR) BEGIN
 
 		INSERT INTO Database.dbo.{TBL_ORG}(orgUnitId,
 										   name,
@@ -284,13 +234,13 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 				CURRENT_TIMESTAMP);		--lastSyncDate
 	END;
 
-	CREATE PROCEDURE UpdateTblOrg(IN orgUnitId CHAR,
-								  IN name CHAR,
-								  IN orgUnitType CHAR,
-								  IN orgUnitParent CHAR,
-							   	  IN costCenter CHAR,
-							   	  IN headOfUnitUserId CHAR,								  
-								  IN status CHAR) BEGIN
+	CREATE PROCEDURE UpdateOrgUnit(IN orgUnitId CHAR,
+								   IN name CHAR,
+								   IN orgUnitType CHAR,
+								   IN orgUnitParent CHAR,
+							   	   IN costCenter CHAR,
+							   	   IN headOfUnitUserId CHAR,								  
+								   IN status CHAR) BEGIN
 
 		UPDATE Database.dbo.{TBL_ORG} AS T
 		SET name 				= name, 
