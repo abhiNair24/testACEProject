@@ -1,0 +1,128 @@
+BROKER SCHEMA INT0080.PROCESS.COSTCENTER
+
+-- Working tables
+DECLARE TBL_COSTCTR CONSTANT CHARACTER 'CostCenter';
+
+
+CREATE COMPUTE MODULE ProcessCostCenter
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN		
+		
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
+		
+		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
+			CALL MapCostCenter(inRef);
+			SET OutputRoot.XMLNSC.Info = 'CostCenter sucessfully processed.';	
+		ELSE
+			SET OutputRoot.XMLNSC.Info = 'No data found in input message.';			
+			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
+		END IF;
+			
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE MapCostCenter(IN inRef REFERENCE) BEGIN
+		
+		WHILE LASTMOVE(inRef) DO		
+
+			-- Incase of error then easier to identify which row that was in error
+			SET Environment.costCenterId = inRef.externalCode;
+					
+			-- Process table CostCenter	
+			CALL ProcessCostCenter(inRef);			
+												
+			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+		END WHILE;	
+
+	END;
+	
+
+	CREATE PROCEDURE ProcessCostCenter(IN inRef REFERENCE) BEGIN	
+		
+		DECLARE costCenterId 		CHAR;
+		DECLARE name 				CHAR;
+		DECLARE managerUserId 		CHAR;
+		DECLARE status		 		CHAR;
+		DECLARE datbaseAction		CHAR;
+		
+		SET costCenterId			= TRIM(LEFT(inRef.externalCode, 32));
+		SET name					= TRIM(LEFT(inRef.name_defaultValue, 90));
+		SET managerUserId			= TRIM(LEFT(inRef.costcenterManager, 100));
+		SET status					= TRIM(LEFT(inRef.status, 2));
+				
+						
+		-- Get current cost center in table CostCenter
+		CALL GetCurrentCostCtrInCostCenter(costCenterId);
+		
+		/* Check if insert new cost center information or update current cost center information or 
+		   just update lastSyncDate for a current cost center */
+		IF (CARDINALITY(Environment.tmp.CostCenter[]) = 0) THEN
+			SET datbaseAction = 'Insert';
+		ELSEIF (COALESCE(name, '') <> COALESCE(Environment.tmp.CostCenter.name, '') OR
+				COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.CostCenter.managerUserId, '') OR
+				COALESCE(status, '') <> COALESCE(Environment.tmp.CostCenter.status, '')) THEN
+			SET datbaseAction = 'Update';
+		END IF;		
+			
+		IF (datbaseAction = 'Insert') THEN
+			CALL InsertCostCenter(costCenterId,
+							      name,
+							      managerUserId,
+							   	  status);
+		ELSEIF (datbaseAction = 'Update') THEN
+			CALL UpdateCostCenter(costCenterId,
+							   	  name,
+							   	  managerUserId,
+							   	  status);
+		ELSE -- Update existing record with a lastSyncDate
+			UPDATE Database.dbo.{TBL_COSTCTR} AS T 
+			SET lastSyncDate = CURRENT_TIMESTAMP
+			WHERE T.costCenterId = costCenterId;
+		END IF;																
+	END;
+
+	CREATE PROCEDURE GetCurrentCostCtrInCostCenter(IN costCenterId CHAR) BEGIN			
+		SET Environment.tmp.CostCenter[] = 
+		SELECT  T.costCenterId,
+				T.name,
+				T.managerUserId,
+				T.status
+		FROM 	Database.dbo.{TBL_COSTCTR} AS T 
+		WHERE 	T.costCenterId = costCenterId;					
+	END;
+
+	CREATE PROCEDURE InsertCostCenter(IN costCenterId CHAR,
+								   	  IN name CHAR,
+								   	  IN managerUserId CHAR,
+								   	  IN status CHAR) BEGIN
+
+		INSERT INTO Database.dbo.{TBL_COSTCTR}(costCenterId,
+											   name,
+											   managerUserId,
+											   status,
+											   recordLastUpdated,
+											   lastSyncDate)
+		VALUES (costCenterId,
+				name,
+				managerUserId,
+				status,															
+				CURRENT_TIMESTAMP,			--recordLastUpdated
+				CURRENT_TIMESTAMP);			--lastSyncDate
+	END;
+
+	CREATE PROCEDURE UpdateCostCenter(IN costCenterId CHAR,
+								   	  IN name CHAR,
+								   	  IN managerUserId CHAR,
+								   	  IN status CHAR) BEGIN
+
+		UPDATE Database.dbo.{TBL_COSTCTR} AS T
+		SET costCenterId 		= costCenterId, 
+			name 				= name, 
+			managerUserId 		= managerUserId,
+			status 				= status,
+			recordLastUpdated 	= CURRENT_TIMESTAMP,
+			lastSyncDate	 	= CURRENT_TIMESTAMP
+		WHERE T.costCenterId = costCenterId;
+
+	END;
+END MODULE;

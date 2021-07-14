@@ -645,9 +645,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		DECLARE department			 	CHAR;
 		DECLARE division			 	CHAR;
 		DECLARE businessUnit			CHAR;
-		DECLARE costCenter				CHAR;
-		DECLARE positionId 				CHAR;
-		DECLARE positionName 			CHAR;		
+		DECLARE costCenterId			CHAR;
+		DECLARE positionId 				CHAR;	
 		DECLARE employeeClass 			CHAR;
 		DECLARE employeeSubClass 		CHAR;
 		DECLARE employmentType			CHAR;
@@ -669,8 +668,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		DECLARE businessLandPhoneNbr	CHAR;
 		DECLARE buildingNumber			CHAR;	
 		DECLARE roomNumber				CHAR;
-		DECLARE managerUserId			CHAR;
-		DECLARE contWrkAdmPositionId	CHAR;		
+		DECLARE managerUserId			CHAR;	
 		DECLARE datbaseAction			CHAR;		
 
 		SET personIdExternal = TRIM(LEFT(inRef.personIdExternal, 32));
@@ -684,7 +682,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET division				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.division, 32));
 			SET businessUnit			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.businessUnit, 32));	
 			SET orgUnitId 				= TRIM(LEFT(GetOrgunitId(department, division, businessUnit), 32));			
-			SET costCenter 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.costCenter, 32));
+			SET costCenterId 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.costCenter, 32));
 	      	SET standardHours 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.standardHours, 10));
 	      	SET workingDaysPerWeek 		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.workingDaysPerWeek, 10));
 	      	SET fullTimeEquivalent 		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.fte, 10));
@@ -695,7 +693,6 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET roomNumber				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom02, 255));
 			SET managerUserId			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.managerUserNav.userId, 100));	
 			SET positionId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
-			SET positionName 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
 
 				
 			-- Get employeeClass
@@ -760,11 +757,6 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET businessLandPhoneNbr = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.phoneNumber)
 				          	   		 		   		  FROM inRef.phoneNav.results.Item[] AS r
 				          	   		   		   		  WHERE r.phoneTypeNav.externalCode = 'B'), 100));
-			
-			-- Get contingentWorkerAdminPositionId
-			SET contWrkAdmPositionId = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.relatedPosition)
-				          	   		 		   	 	  FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.positionMatrixRelationship.results.Item[] AS r
-				          	   		   		   	 	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
 	      	  	        	  		  					
 			-- Get current employee in table Employment
 			CALL GetCurrentEmpInEmployment(personIdExternal);	
@@ -783,8 +775,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					COALESCE(division, '') <> COALESCE(Environment.tmp.Employment.division, '') OR
 					COALESCE(businessUnit, '') <> COALESCE(Environment.tmp.Employment.businessUnit, '') OR
 					COALESCE(positionId, '') <> COALESCE(Environment.tmp.Employment.positionId, '') OR
-					COALESCE(positionName, '') <> COALESCE(Environment.tmp.Employment.positionName, '') OR
-					COALESCE(costCenter, '') <> COALESCE(Environment.tmp.Employment.costCenter, '') OR
+					COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.Employment.costCenterId, '') OR
 					COALESCE(employeeClass, '') <> COALESCE(Environment.tmp.Employment.employeeClass, '') OR
 					COALESCE(employeeSubClass, '') <> COALESCE(Environment.tmp.Employment.employeeSubClass, '') OR
 					COALESCE(employmentType, '') <> COALESCE(Environment.tmp.Employment.employmentType, '') OR
@@ -806,8 +797,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					COALESCE(businessLandPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessLandlinePhoneNumber, '') OR
 					COALESCE(buildingNumber, '') <> COALESCE(Environment.tmp.Employment.buildingNumber, '') OR
 					COALESCE(roomNumber, '') <> COALESCE(Environment.tmp.Employment.roomNumber, '') OR
-					COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.Employment.managerUserId, '') OR
-					COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Employment.contingentWorkerAdminPositionId, '')) THEN
+					COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.Employment.managerUserId, '')) THEN
 				
 				SET datbaseAction = 'Update';				
 				
@@ -829,8 +819,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 								 	  division,
 								 	  businessUnit,
 								 	  positionId,
-								 	  positionName,
-								 	  costCenter,
+								 	  costCenterId,
 								 	  employeeClass,
 								 	  employeeSubClass,
 								 	  employmentType,
@@ -852,8 +841,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 								 	  businessLandPhoneNbr,
 								 	  buildingNumber,
 								 	  roomNumber,
-								 	  managerUserId,
-								 	  contWrkAdmPositionId,								 	  
+								 	  managerUserId,						 	  
 								 	  datbaseAction);
 			END IF;				          	   		         	        
 		ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
@@ -881,8 +869,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				T.division,
 				T.businessUnit,
 				T.positionId,
-				T.positionName,
-				T.costCenter,
+				T.costCenterId,
 				T.employeeClass,
 				T.employeeSubClass,
 				T.employmentType,
@@ -904,8 +891,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				T.businessLandlinePhoneNumber,
 				T.buildingNumber,
 				T.roomNumber,
-				T.managerUserId,
-				T.contingentWorkerAdminPositionId
+				T.managerUserId
 		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
 		WHERE 	T.personIdExternal = personIdExternal AND 
 				T.recordTodate IS NULL;					
@@ -921,8 +907,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 									  IN division CHAR,
 									  IN businessUnit CHAR,
 									  IN positionId CHAR,
-									  IN positionName CHAR,
-									  IN costCenter CHAR,
+									  IN costCenterId CHAR,
 									  IN employeeClass CHAR,
 									  IN employeeSubClass CHAR,	
 									  IN employmentType CHAR,
@@ -944,8 +929,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 									  IN businessLandPhoneNbr CHAR,
 									  IN buildingNumber CHAR,
 									  IN roomNumber CHAR,
-									  IN managerUserId CHAR,
-									  IN contWrkAdmPositionId CHAR,										  			  
+									  IN managerUserId CHAR,								  			  
 								  	  IN datbaseAction CHAR) BEGIN
 	
 	
@@ -965,8 +949,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 										   		  division,
 										   		  businessUnit,
 										   		  positionId,
-										   		  positionName,
-										   		  costCenter,
+										   		  costCenterId,
 										   		  employeeClass,
 										   		  employeeSubClass,
 										   		  employmentType,
@@ -988,8 +971,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 										   		  businessLandlinePhoneNumber,
 										   		  buildingNumber,
 										   		  roomNumber,
-										   		  managerUserId,
-										   		  contingentWorkerAdminPositionId,									   		  
+										   		  managerUserId,								   		  
 										   		  recordFromDate,
 										   		  recordToDate,
 										   		  lastSyncDate)
@@ -1003,8 +985,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				division,
 				businessUnit,
 				positionId,
-				positionName,
-				costCenter,
+				costCenterId,
 				employeeClass,
 				employeeSubClass,
 				employmentType,
@@ -1026,8 +1007,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				businessLandPhoneNbr,
 				buildingNumber,
 				roomNumber,
-				managerUserId,
-				contWrkAdmPositionId,									
+				managerUserId,								
 				CURRENT_TIMESTAMP,				--recordFromDate
 				NULL,							--recordToDate
 				CURRENT_TIMESTAMP);				--lastSyncDate	

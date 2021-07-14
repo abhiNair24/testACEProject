@@ -1,0 +1,262 @@
+BROKER SCHEMA INT0080.PROCESS.POSITION
+
+
+-- Working tables
+DECLARE TBL_POS CONSTANT CHARACTER 'Position';
+
+
+CREATE COMPUTE MODULE ProcessPosition
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN		
+		
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
+		
+		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
+			CALL MapPosition(inRef);
+			SET OutputRoot.XMLNSC.Info = 'Position sucessfully processed.';	
+		ELSE
+			SET OutputRoot.XMLNSC.Info = 'No data found in input message.';			
+			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
+		END IF;
+			
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE MapPosition(IN inRef REFERENCE) BEGIN
+		
+		WHILE LASTMOVE(inRef) DO		
+
+			-- Incase of error then easier to identify which row that was in error
+			SET Environment.positionId = inRef.code;
+					
+			-- Process table Position	
+			CALL ProcessPosition(inRef);			
+												
+			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+		END WHILE;	
+	END;
+
+	CREATE FUNCTION GetVacancy(IN vacant BOOLEAN
+	) RETURNS BOOLEAN BEGIN			 		
+								
+		IF (vacant = TRUE) THEN
+			RETURN TRUE;
+		ELSE
+			RETURN FALSE;
+		END IF;
+	END;	
+
+	CREATE PROCEDURE ProcessPosition(IN inRef REFERENCE) BEGIN	
+		
+		DECLARE positionId		 		CHAR;
+		DECLARE name 					CHAR;
+		DECLARE companyCode 			CHAR;
+		DECLARE locationId	 			CHAR;		
+		DECLARE costCenterId 			CHAR;		
+		DECLARE vacant		 			BOOLEAN;		
+		DECLARE orgUnitLevel1 			CHAR;
+		DECLARE orgUnitLevel2 			CHAR;
+		DECLARE orgUnitLevel3 			CHAR;				
+		DECLARE orgUnitLevel4 			CHAR;		
+		DECLARE orgUnitLevel5 			CHAR;				
+		DECLARE orgUnitLevel6 			CHAR;
+		DECLARE contWrkAdmPositionId 	CHAR;
+		DECLARE parentPositionId	 	CHAR;						
+		DECLARE status		 			CHAR;
+		DECLARE datbaseAction			CHAR;
+		
+		SET positionId					= TRIM(LEFT(inRef.code, 128));
+		SET name						= TRIM(LEFT(inRef.externalName_defaultValue, 255));
+		SET companyCode					= TRIM(LEFT(inRef.company, 8));
+		SET locationId					= TRIM(LEFT(inRef.location, 128));
+		SET costCenterId				= TRIM(LEFT(inRef.costCenter, 32));
+		--SET vacant						= GetVacancy(inRef.vacant);
+		SET vacant						= inRef.vacant;
+		SET orgUnitLevel1				= TRIM(LEFT(inRef.cust_orgUnitLevel1, 128));
+		SET orgUnitLevel2				= TRIM(LEFT(inRef.cust_orgUnitLevel2, 128));
+		SET orgUnitLevel3				= TRIM(LEFT(inRef.cust_orgUnitLevel3, 128));
+		SET orgUnitLevel4				= TRIM(LEFT(inRef.cust_orgUnitLevel4, 128));
+		SET orgUnitLevel5				= TRIM(LEFT(inRef.cust_orgUnitLevel5, 128));
+		SET orgUnitLevel6				= TRIM(LEFT(inRef.cust_orgUnitLevel6, 128));
+		SET parentPositionId			= TRIM(LEFT(inRef.parentPosition.code, 128));
+		SET status						= TRIM(LEFT(inRef.effectiveStatus, 2));
+
+		-- Get contingentWorkerAdminPositionId
+		SET contWrkAdmPositionId = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.relatedPosition)
+			          	   		 		   	 	  FROM inRef.positionMatrixRelationship.results.Item[] AS r
+			          	   		   		   	 	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
+									
+		-- Get current position in table Position
+		CALL GetCurrentPosInPosition(positionId);
+		
+		/* Check if insert new position information or update current position information or 
+		   just update lastSyncDate for a current position */
+		IF (CARDINALITY(Environment.tmp.Position[]) = 0) THEN
+			SET datbaseAction = 'Insert';
+		ELSEIF (COALESCE(name, '') <> COALESCE(Environment.tmp.Position.name, '') OR
+				COALESCE(companyCode, '') <> COALESCE(Environment.tmp.Position.companyCode, '') OR
+				COALESCE(locationId, '') <> COALESCE(Environment.tmp.Position.locationId, '') OR
+				COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.Position.costCenterId, '') OR
+				vacant <> Environment.tmp.Position.vacant OR
+				COALESCE(orgUnitLevel1, '') <> COALESCE(Environment.tmp.Position.orgUnitLevel1, '') OR
+				COALESCE(orgUnitLevel2, '') <> COALESCE(Environment.tmp.Position.orgUnitLevel2, '') OR
+				COALESCE(orgUnitLevel3, '') <> COALESCE(Environment.tmp.Position.orgUnitLevel3, '') OR
+				COALESCE(orgUnitLevel4, '') <> COALESCE(Environment.tmp.Position.orgUnitLevel4, '') OR
+				COALESCE(orgUnitLevel5, '') <> COALESCE(Environment.tmp.Position.orgUnitLevel5, '') OR
+				COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.Position.orgUnitLevel6, '') OR
+				COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Position.contingentWorkerAdminPositionId, '') OR
+				COALESCE(parentPositionId, '') <> COALESCE(Environment.tmp.Position.parentPositionId, '') OR
+				COALESCE(status, '') <> COALESCE(Environment.tmp.Position.status, '')) THEN
+			SET datbaseAction = 'Update';
+		END IF;		
+			
+		IF (datbaseAction = 'Insert') THEN
+			CALL InsertPosition(positionId,
+							    name,
+							    companyCode,
+							    locationId,
+							    costCenterId,
+							    vacant,
+							    orgUnitLevel1,
+							    orgUnitLevel2,
+							    orgUnitLevel3,
+							    orgUnitLevel4,
+							    orgUnitLevel5,
+							    orgUnitLevel6,
+							    contWrkAdmPositionId,
+							    parentPositionId,
+							   	status);
+		ELSEIF (datbaseAction = 'Update') THEN
+			CALL UpdatePosition(positionId,
+							    name,
+							    companyCode,
+							    locationId,
+							    costCenterId,
+							    vacant,
+							    orgUnitLevel1,
+							    orgUnitLevel2,
+							    orgUnitLevel3,
+							    orgUnitLevel4,
+							    orgUnitLevel5,
+							    orgUnitLevel6,
+							    contWrkAdmPositionId,
+							    parentPositionId,
+							   	status);
+		ELSE -- Update existing record with a lastSyncDate
+			UPDATE Database.dbo.{TBL_POS} AS T 
+			SET lastSyncDate = CURRENT_TIMESTAMP
+			WHERE T.positionId = positionId;
+		END IF;																
+	END;
+
+	CREATE PROCEDURE GetCurrentPosInPosition(IN positionId CHAR) BEGIN			
+		SET Environment.tmp.Position[] = 
+		SELECT  T.positionId,
+				T.name,
+				T.companyCode,
+				T.locationId,
+				T.costCenterId,
+				T.vacant,
+				T.orgUnitLevel1,
+				T.orgUnitLevel2,
+				T.orgUnitLevel3,
+				T.orgUnitLevel4,
+				T.orgUnitLevel5,
+				T.orgUnitLevel6,
+				T.contingentWorkerAdminPositionId,
+				T.parentPositionId,
+				T.status
+		FROM 	Database.dbo.{TBL_POS} AS T 
+		WHERE 	T.positionId = positionId;					
+	END;
+
+	CREATE PROCEDURE InsertPosition(IN positionId CHAR,
+								   	IN name CHAR,
+								   	IN companyCode CHAR,
+								   	IN locationId CHAR,
+								   	IN costCenterId CHAR,
+								   	IN vacant BOOLEAN,
+								   	IN orgUnitLevel1 CHAR,
+								   	IN orgUnitLevel2 CHAR,
+								   	IN orgUnitLevel3 CHAR,
+								   	IN orgUnitLevel4 CHAR,
+								   	IN orgUnitLevel5 CHAR,
+								   	IN orgUnitLevel6 CHAR,
+								   	IN contWrkAdmPositionId CHAR,
+								   	IN parentPositionId CHAR,
+								   	IN status CHAR) BEGIN
+
+		INSERT INTO Database.dbo.{TBL_POS}(positionId,
+										   name,
+										   companyCode,
+										   locationId,
+										   costCenterId,
+										   vacant,
+										   orgUnitLevel1,
+										   orgUnitLevel2,
+										   orgUnitLevel3,
+										   orgUnitLevel4,
+										   orgUnitLevel5,
+										   orgUnitLevel6,
+										   contingentWorkerAdminPositionId,
+										   parentPositionId,
+										   status,
+										   recordLastUpdated,
+										   lastSyncDate)
+		VALUES (positionId,
+				name,
+				companyCode,
+				locationId,
+				costCenterId,
+				vacant,
+				orgUnitLevel1,
+				orgUnitLevel2,
+				orgUnitLevel3,
+				orgUnitLevel4,
+				orgUnitLevel5,
+				orgUnitLevel6,
+				contWrkAdmPositionId,
+				parentPositionId,
+				status,															
+				CURRENT_TIMESTAMP,			--recordLastUpdated
+				CURRENT_TIMESTAMP);			--lastSyncDate
+	END;
+
+	CREATE PROCEDURE UpdatePosition(IN positionId CHAR,
+								   	IN name CHAR,
+								   	IN companyCode CHAR,
+								   	IN locationId CHAR,
+								   	IN costCenterId CHAR,
+								   	IN vacant BOOLEAN,
+								   	IN orgUnitLevel1 CHAR,
+								   	IN orgUnitLevel2 CHAR,
+								   	IN orgUnitLevel3 CHAR,
+								   	IN orgUnitLevel4 CHAR,
+								   	IN orgUnitLevel5 CHAR,
+								   	IN orgUnitLevel6 CHAR,
+								   	IN contWrkAdmPositionId CHAR,
+								   	IN parentPositionId CHAR,
+								   	IN status CHAR) BEGIN
+
+		UPDATE Database.dbo.{TBL_POS} AS T
+		SET positionId 							= positionId, 
+			name 								= name, 
+			companyCode 						= companyCode,
+			locationId 							= locationId,
+			costCenterId 						= costCenterId,
+			vacant 								= vacant,
+			orgUnitLevel1 						= orgUnitLevel1,
+			orgUnitLevel2 						= orgUnitLevel2,
+			orgUnitLevel3 						= orgUnitLevel3,
+			orgUnitLevel4 						= orgUnitLevel4,
+			orgUnitLevel5 						= orgUnitLevel5,
+			orgUnitLevel6 						= orgUnitLevel6,
+			contingentWorkerAdminPositionId 	= contWrkAdmPositionId,
+			parentPositionId 					= parentPositionId,
+			status 								= status,
+			recordLastUpdated 					= CURRENT_TIMESTAMP,
+			lastSyncDate	 					= CURRENT_TIMESTAMP
+		WHERE T.positionId = positionId;
+
+	END;
+END MODULE;

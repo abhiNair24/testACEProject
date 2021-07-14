@@ -1,0 +1,81 @@
+BROKER SCHEMA INT0080.SF_GET.FO_COSTCENTER
+
+
+CREATE COMPUTE MODULE GetFOCostCenter
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE countReq	INT 1;
+		DECLARE sqlc 		CHAR;
+		DECLARE vHost 		CHAR;
+		DECLARE trigList	ROW;
+		
+		-- Extract source trigger list
+		SET trigList.list.parm[] = EVAL('LIST{' || InputRoot.XMLNSC.TriggerMsg.TriggerId || '}');
+
+		-- Get URL
+		SET vHost = Environment.Conn.Value.URL; 
+
+		-- Set Environment start values
+		SET Environment.SF.Meta.hasMore 	= true;
+		SET Environment.SF.Meta.firstRun 	= true;
+						
+		WHILE (Environment.SF.Meta.hasMore = true AND countReq <= 100) DO
+		
+			SET OutputRoot.Properties.CodedCharSetId 			= 1208;						
+			SET OutputRoot.Properties.IdentitySourceType 		= 'usernameAndPassword';
+			SET OutputRoot.Properties.IdentitySourceToken 		= Environment.Conn.Value.UNAME;
+			SET OutputRoot.Properties.IdentitySourcePassword	= Environment.Conn.Value.PW;
+			SET OutputRoot.Properties.IdentitySourceIssuedBy 	= Environment.Conn.Value.ISSUED_BY;				
+			
+			-- If first run, then run query, else run queryMore
+			IF Environment.SF.Meta.firstRun = true THEN
+				SET Environment.SF.Meta.RequestURL = GetQFOCostCenter(vHost);
+				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = GetQFOCostCenter(vHost);				
+			ELSEIF Environment.SF.Meta.firstRun = false THEN
+				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = Environment.SF.Meta.Next;		
+			END IF;
+			
+			PROPAGATE TO TERMINAL 'out';
+		
+			SET countReq = countReq + 1;	
+		END WHILE;	
+									
+		SET OutputRoot.Properties = InputRoot.Properties;
+		
+		-- Only run sequencial if it is a trigger message containing that param
+		IF (trigList.list.parm[2] = 'Sequential') THEN			
+			SET OutputRoot = InputRoot;
+			PROPAGATE TO TERMINAL 'out1';		
+		END IF;		
+		
+		RETURN FALSE;	
+	END;
+
+	CREATE FUNCTION GetQFOCostCenter(IN vHost CHAR
+	) RETURNS CHAR BEGIN			 		
+		
+		DECLARE vObject CHAR 'FOCostCenter';
+		DECLARE vSelect CHAR '$select=';
+		DECLARE vExpand CHAR '$expand=';
+		DECLARE vPaging CHAR 'paging=snapshot';
+		DECLARE vCustom CHAR 'customPageSize=1000';		
+		DECLARE vFormat CHAR '$format=json';	
+		
+		-- Select
+		SET vSelect = vSelect || 'externalCode,';
+		SET vSelect = vSelect || 'name_defaultValue,';						
+		SET vSelect = vSelect || 'costcenterManager,';
+		SET vSelect = vSelect || 'status';	
+		
+		RETURN vHost || vObject || '?' || vSelect || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
+		
+	END;
+END MODULE;
+
+CREATE FILTER MODULE GetConn
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		CALL INT0080.COMMON.GetConnectionInfo(Environment);
+		RETURN TRUE;
+	END;
+END MODULE;

@@ -120,12 +120,12 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/externalCode,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels/locale,';		
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels/label,';		
-		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionEntryDate,';
+		--SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionEntryDate,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/locationNav/externalCode,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/locationNav/name,';
-		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/externalName_defaultValue,';
-		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship/relatedPosition,';
-		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship/matrixRelationshipType,';			
+		--SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/externalName_defaultValue,';
+		--SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship/relatedPosition,';
+		--SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship/matrixRelationshipType,';			
 		SET vSelect = vSelect || 'employmentNav/userNav/custom01,';
 		SET vSelect = vSelect || 'employmentNav/userNav/custom02,';
 		SET vSelect = vSelect || 'employmentNav/userNav/dateOfBirth,';

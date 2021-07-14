@@ -37,7 +37,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			DECLARE name			 	CHAR;
 			DECLARE orgUnitType 		CHAR;		
 			DECLARE orgUnitParent	 	CHAR;
-			DECLARE costCenter			CHAR;
+			DECLARE costCenterId		CHAR;
 			DECLARE headOfUnitUserId	CHAR;
 			DECLARE status	 			CHAR;
 
@@ -48,7 +48,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET orgUnitId 			= TRIM(LEFT(inRef.externalCode, 32));
 			SET name 				= TRIM(LEFT(inRef.name, 90));
 			SET orgUnitType 		= 'Department';			
-			SET costCenter			= TRIM(LEFT(inRef.costCenter, 90));
+			SET costCenterId		= TRIM(LEFT(inRef.costCenter, 90));
 			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
 			SET status 				= TRIM(LEFT(inRef.status, 2));
 			
@@ -63,7 +63,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 							    name, 
 							    orgUnitType,
 							    orgUnitParent,
-							    costCenter,
+							    costCenterId,
 							    headOfUnitUserId,
 							    status);
 												
@@ -78,7 +78,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			DECLARE name			 	CHAR;
 			DECLARE orgUnitType 		CHAR;		
 			DECLARE orgUnitParent	 	CHAR;
-			DECLARE costCenter			CHAR;
+			DECLARE costCenterId		CHAR;
 			DECLARE headOfUnitUserId	CHAR;
 			DECLARE status	 			CHAR;
 
@@ -89,7 +89,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET orgUnitId 			= TRIM(LEFT(inRef.externalCode, 32));
 			SET name 				= TRIM(LEFT(inRef.name, 90));
 			SET orgUnitType 		= 'Division';			
-			SET costCenter			= TRIM(LEFT(inRef.cust_costCenter, 90));
+			SET costCenterId		= TRIM(LEFT(inRef.cust_costCenter, 90));
 			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
 			SET status 				= TRIM(LEFT(inRef.status, 2));
 			SET orgUnitParent 		= TRIM(LEFT(COALESCE(inRef.cust_toBusinessUnit.results.Item.externalCode, NULL), 32));		
@@ -99,7 +99,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 							    name, 
 							    orgUnitType,
 							    orgUnitParent,
-							    costCenter,
+							    costCenterId,
 							    headOfUnitUserId,
 							    status);
 												
@@ -114,7 +114,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			DECLARE name			 	CHAR;
 			DECLARE orgUnitType 		CHAR;		
 			DECLARE orgUnitParent	 	CHAR;
-			DECLARE costCenter			CHAR;
+			DECLARE costCenterId		CHAR;
 			DECLARE headOfUnitUserId	CHAR;
 			DECLARE status	 			CHAR;
 
@@ -125,7 +125,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET orgUnitId 			= TRIM(LEFT(inRef.externalCode, 32));
 			SET name 				= TRIM(LEFT(inRef.name, 90));
 			SET orgUnitType 		= 'BusinessUnit';			
-			SET costCenter			= TRIM(LEFT(inRef.cust_costCenter, 90));
+			SET costCenterId		= TRIM(LEFT(inRef.cust_costCenter, 90));
 			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
 			SET status 				= TRIM(LEFT(inRef.status, 2));
 			SET orgUnitParent 		= TRIM(LEFT(COALESCE(inRef.cust_toBusinessUnit.externalCode, NULL), 32));		
@@ -135,7 +135,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 							    name, 
 							    orgUnitType,
 							    orgUnitParent,
-							    costCenter,
+							    costCenterId,
 							    headOfUnitUserId,
 							    status);
 												
@@ -147,7 +147,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 								    IN name CHAR, 
 								    IN orgUnitType CHAR,
 								    IN orgUnitParent CHAR,
-							   	    IN costCenter CHAR,
+							   	    IN costCenterId CHAR,
 							   	    IN headOfUnitUserId CHAR,
 								    IN status CHAR) BEGIN				
 		
@@ -164,7 +164,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 		ELSEIF (COALESCE(name, '') <> COALESCE(Environment.tmp.OrgUnit.name, '') OR
 				COALESCE(orgUnitType, '') <> COALESCE(Environment.tmp.OrgUnit.orgUnitType, '') OR
 				COALESCE(orgUnitParent, '') <> COALESCE(Environment.tmp.OrgUnit.orgUnitParent, '') OR				
-				COALESCE(costCenter, '') <> COALESCE(Environment.tmp.OrgUnit.costCenter, '') OR
+				COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.OrgUnit.costCenterId, '') OR
 				COALESCE(headOfUnitUserId, '') <> COALESCE(Environment.tmp.OrgUnit.headOfUnitUserId, '') OR
 				COALESCE(status, '') <> COALESCE(Environment.tmp.OrgUnit.status, '')) THEN
 			SET datbaseAction = 'Update';
@@ -175,7 +175,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 						   	   name, 
 						   	   orgUnitType,
 						   	   orgUnitParent,
-							   costCenter,
+							   costCenterId,
 							   headOfUnitUserId,
 						   	  status);
 		ELSEIF (datbaseAction = 'Update') THEN
@@ -183,7 +183,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 						   	   name, 
 						   	   orgUnitType,
 						   	   orgUnitParent,
-							   costCenter,
+							   costCenterId,
 							   headOfUnitUserId,
 						   	   status);
 		ELSE -- Update existing record with a lastSyncDate
@@ -199,7 +199,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 				T.name,
 				T.orgUnitType,
 				T.orgUnitParent,
-				T.costCenter,
+				T.costCenterId,
 				T.headOfUnitUserId,
 				T.status
 		FROM 	Database.dbo.{TBL_ORG} AS T 
@@ -210,7 +210,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 								   IN name CHAR,
 								   IN orgUnitType CHAR,
 								   IN orgUnitParent CHAR,
-							   	   IN costCenter CHAR,
+							   	   IN costCenterId CHAR,
 							   	   IN headOfUnitUserId CHAR,								  
 								   IN status CHAR) BEGIN
 
@@ -218,7 +218,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 										   name,
 										   orgUnitType,
 										   orgUnitParent,
-										   costCenter,
+										   costCenterId,
 										   headOfUnitUserId,
 										   status,											   
 										   recordLastUpdated,
@@ -227,7 +227,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 				name,
 				orgUnitType,
 				orgUnitParent,
-				costCenter,
+				costCenterId,
 				headOfUnitUserId,
 				status,														
 				CURRENT_TIMESTAMP,		--recordLastUpdated
@@ -238,7 +238,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 								   IN name CHAR,
 								   IN orgUnitType CHAR,
 								   IN orgUnitParent CHAR,
-							   	   IN costCenter CHAR,
+							   	   IN costCenterId CHAR,
 							   	   IN headOfUnitUserId CHAR,								  
 								   IN status CHAR) BEGIN
 
@@ -246,7 +246,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 		SET name 				= name, 
 			orgUnitType			= orgUnitType,
 			orgUnitParent		= orgUnitParent, 
-			costCenter 			= costCenter,
+			costCenterId 		= costCenterId,
 			headOfUnitUserId 	= headOfUnitUserId,			
 			status				= status,
 			recordLastUpdated 	= CURRENT_TIMESTAMP,

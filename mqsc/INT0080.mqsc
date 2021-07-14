@@ -218,6 +218,74 @@ DEFINE QLOCAL('INT0080.PROCESS.ORGUNIT') +
        MAXDEPTH(5000) +
        MAXMSGL(104857600) +
        REPLACE
+
+DEFINE QLOCAL('INT0080.GET.FO.COSTCENTER.BQ') +
+       DESCR('Backout queue to INT0080.GET.FO.COSTCENTER') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.GET.FO.COSTCENTER') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.GET.FO.COSTCENTER.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.COSTCENTER.BQ') +
+       DESCR('Backout queue to INT0080.PROCESS.COSTCENTER') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.COSTCENTER') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.PROCESS.COSTCENTER.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.GET.POSITION.BQ') +
+       DESCR('Backout queue to INT0080.GET.POSITION') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.GET.POSITION') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.GET.POSITION.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.POSITION.BQ') +
+       DESCR('Backout queue to INT0080.PROCESS.POSITION') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.POSITION') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.PROCESS.POSITION.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
 *******************************************************************
 * Remote queues
 *******************************************************************

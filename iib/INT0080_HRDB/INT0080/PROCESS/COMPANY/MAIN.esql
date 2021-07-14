@@ -28,7 +28,7 @@ CREATE COMPUTE MODULE ProcessCompany
 			-- Incase of error then easier to identify which row that was in error
 			SET Environment.companyCode = inRef.externalCode;
 					
-			-- Process tblComp	
+			-- Process table Company	
 			CALL ProcessCompany(inRef);			
 												
 			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
