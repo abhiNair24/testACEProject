@@ -36,16 +36,6 @@ CREATE COMPUTE MODULE ProcessPosition
 		END WHILE;	
 	END;
 
-	CREATE FUNCTION GetVacancy(IN vacant BOOLEAN
-	) RETURNS BOOLEAN BEGIN			 		
-								
-		IF (vacant = TRUE) THEN
-			RETURN TRUE;
-		ELSE
-			RETURN FALSE;
-		END IF;
-	END;	
-
 	CREATE PROCEDURE ProcessPosition(IN inRef REFERENCE) BEGIN	
 		
 		DECLARE positionId		 		CHAR;
@@ -70,7 +60,6 @@ CREATE COMPUTE MODULE ProcessPosition
 		SET companyCode					= TRIM(LEFT(inRef.company, 8));
 		SET locationId					= TRIM(LEFT(inRef.location, 128));
 		SET costCenterId				= TRIM(LEFT(inRef.costCenter, 32));
-		--SET vacant						= GetVacancy(inRef.vacant);
 		SET vacant						= inRef.vacant;
 		SET orgUnitLevel1				= TRIM(LEFT(inRef.cust_orgUnitLevel1, 128));
 		SET orgUnitLevel2				= TRIM(LEFT(inRef.cust_orgUnitLevel2, 128));

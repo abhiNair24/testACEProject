@@ -150,7 +150,7 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels,';
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/locationNav,';
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/managerUserNav,';	
-		SET vExpand = vExpand || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship,';
+		--SET vExpand = vExpand || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship,';
 		--SET vExpand = vExpand || 'employmentNav/jobInfoNav/jobCodeNav,';
 		SET vExpand = vExpand || 'employmentNav/userNav,';
 		SET vExpand = vExpand || 'employmentNav/workOrderNav,';
