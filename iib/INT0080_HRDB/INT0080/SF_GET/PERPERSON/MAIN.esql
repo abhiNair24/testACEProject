@@ -10,6 +10,10 @@ CREATE COMPUTE MODULE GetPerPerson
 		DECLARE countReq	INT 1;
 		DECLARE sqlc 		CHAR;
 		DECLARE vHost 		CHAR;
+		DECLARE trigList	ROW;
+		
+		-- Extract source trigger list
+		SET trigList.list.parm[] = EVAL('LIST{' || InputRoot.XMLNSC.TriggerMsg.TriggerId || '}');
 		
 		-- Clean up synch table
 		SET sqlc = 'DELETE FROM ' || TBL_SYNCH_LOG || ' WHERE TYPE = ''Employee''';	
@@ -43,6 +47,14 @@ CREATE COMPUTE MODULE GetPerPerson
 		
 			SET countReq = countReq + 1;	
 		END WHILE;	
+		
+		SET OutputRoot.Properties = InputRoot.Properties;
+		
+		-- Only run sequencial if it is a trigger message containing that param
+		IF (trigList.list.parm[2] = 'Sequential') THEN			
+			SET OutputRoot = InputRoot;
+			PROPAGATE TO TERMINAL 'out1';		
+		END IF;	
 									
 		RETURN FALSE;
 	END;

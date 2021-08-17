@@ -7,10 +7,6 @@ CREATE COMPUTE MODULE GetFOCostCenter
 		DECLARE countReq	INT 1;
 		DECLARE sqlc 		CHAR;
 		DECLARE vHost 		CHAR;
-		DECLARE trigList	ROW;
-		
-		-- Extract source trigger list
-		SET trigList.list.parm[] = EVAL('LIST{' || InputRoot.XMLNSC.TriggerMsg.TriggerId || '}');
 
 		-- Get URL
 		SET vHost = Environment.Conn.Value.URL; 
@@ -40,13 +36,7 @@ CREATE COMPUTE MODULE GetFOCostCenter
 			SET countReq = countReq + 1;	
 		END WHILE;	
 									
-		SET OutputRoot.Properties = InputRoot.Properties;
-		
-		-- Only run sequencial if it is a trigger message containing that param
-		IF (trigList.list.parm[2] = 'Sequential') THEN			
-			SET OutputRoot = InputRoot;
-			PROPAGATE TO TERMINAL 'out1';		
-		END IF;		
+		SET OutputRoot.Properties = InputRoot.Properties;			
 		
 		RETURN FALSE;	
 	END;

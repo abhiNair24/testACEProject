@@ -7,16 +7,16 @@
     <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj16/MAIN.gif"/>
     <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj30/MAIN.gif"/>
     <composition>
-      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="430,130" dataSource="HRDB" computeExpression="esql://routine/INT0080.PROCESS.EMPLOYEE#ProcessEmployee.Main" computeMode="destinationAndMessage">
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="470,130" dataSource="HRDB" computeExpression="esql://routine/INT0080.PROCESS.EMPLOYEE#ProcessEmployee.Main" computeMode="destinationAndMessage">
         <translation xmi:type="utility:ConstantString" string="ProcessEmployee"/>
       </nodes>
       <nodes xmi:type="ComIbmMQInput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="52,130" queueName="INT0080.PROCESS.EMPLOYEE" messageDomainProperty="JSON">
         <translation xmi:type="utility:ConstantString" string="INT0080.PROCESS.EMPLOYEE"/>
       </nodes>
-      <nodes xmi:type="ICC_FRMWRK_ICC0001_MQ_INPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_5" location="229,134" INTID="INT0080">
+      <nodes xmi:type="ICC_FRMWRK_ICC0001_MQ_INPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_5" location="269,134" INTID="INT0080">
         <translation xmi:type="utility:ConstantString" string="ICC0001_MQ_INPUT_LOGGING"/>
       </nodes>
-      <nodes xmi:type="ICC_FRMWRK_ICC0007_NO_OUTPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_6" location="556,131">
+      <nodes xmi:type="ICC_FRMWRK_ICC0007_NO_OUTPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_6" location="596,131">
         <translation xmi:type="utility:ConstantString" string="ICC0007_NO_OUTPUT_LOGGING"/>
       </nodes>
       <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_1" targetNode="FCMComposite_1_5" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>

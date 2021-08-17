@@ -7,32 +7,35 @@
     <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj16/MAIN.gif"/>
     <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj30/MAIN.gif"/>
     <composition>
-      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="531,168" dataSource="HRDB" computeExpression="esql://routine/INT0080.SF_GET.PERPERSON#GetPerPerson.Main" computeMode="destinationAndMessage">
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="610,133" dataSource="HRDB" computeExpression="esql://routine/INT0080.SF_GET.PERPERSON#GetPerPerson.Main" computeMode="destinationAndMessage">
         <translation xmi:type="utility:ConstantString" string="GetPerPerson"/>
       </nodes>
-      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="639,169" URLSpecifier="http://dummy" httpMethod="GET" httpVersion="1.1" protocol="TLSv1.2" messageDomainProperty="JSON">
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="787,134" URLSpecifier="http://dummy" httpMethod="GET" httpVersion="1.1" protocol="TLSv1.2" messageDomainProperty="JSON">
         <translation xmi:type="utility:ConstantString" string="HTTP Request"/>
       </nodes>
-      <nodes xmi:type="ComIbmMQInput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_3" location="20,156" queueName="INT0080.GET.PERPERSON.TRIGGER">
+      <nodes xmi:type="ComIbmMQInput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_3" location="14,121" queueName="INT0080.GET.PERPERSON.TRIGGER" messageDomainProperty="XMLNSC">
         <translation xmi:type="utility:ConstantString" string="INT0080.GET.PERPERSON.TRIGGER"/>
       </nodes>
-      <nodes xmi:type="ComIbmMQOutput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_4" location="889,170" queueName="INT0080.PROCESS.EMPLOYEE" transactionMode="no" newMsgId="true">
+      <nodes xmi:type="ComIbmMQOutput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_4" location="1176,135" queueName="INT0080.PROCESS.EMPLOYEE" transactionMode="no" newMsgId="true">
         <translation xmi:type="utility:ConstantString" string="INT0080.PROCESS.EMPLOYEE"/>
       </nodes>
-      <nodes xmi:type="ComIbmFilter.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_5" location="410,156" dataSource="IIBUSER" filterExpression="esql://routine/INT0080.SF_GET.PERPERSON#GetConn.Main">
+      <nodes xmi:type="ComIbmFilter.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_5" location="505,121" dataSource="IIBUSER" filterExpression="esql://routine/INT0080.SF_GET.PERPERSON#GetConn.Main">
         <translation xmi:type="utility:ConstantString" string="GetConn"/>
       </nodes>
-      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_7" location="777,169" computeExpression="esql://routine/INT0080.COMMON#CheckIfMoreToGet.Main">
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_7" location="1001,134" computeExpression="esql://routine/INT0080.COMMON#CheckIfMoreToGet.Main">
         <translation xmi:type="utility:ConstantString" string="CheckIfMoreToGet"/>
       </nodes>
-      <nodes xmi:type="ICC_FRMWRK_ICC0001_MQ_INPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_8" location="212,160" INTID="INT0080">
+      <nodes xmi:type="ICC_FRMWRK_ICC0001_MQ_INPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_8" location="276,125" INTID="INT0080">
         <translation xmi:type="utility:ConstantString" string="ICC0001_MQ_INPUT_LOGGING"/>
       </nodes>
-      <nodes xmi:type="ICC_FRMWRK_ICC0002_MQ_OUTPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_9" location="1072,174">
+      <nodes xmi:type="ICC_FRMWRK_ICC0002_MQ_OUTPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_9" location="1289,305">
         <translation xmi:type="utility:ConstantString" string="ICC0002_MQ_OUTPUT_LOGGING"/>
       </nodes>
-      <nodes xmi:type="ICC_FRMWRK_ICC0010_THROW_HTTP_EXCEPTION.subflow:FCMComposite_1" xmi:id="FCMComposite_1_10" location="730,255">
+      <nodes xmi:type="ICC_FRMWRK_ICC0010_THROW_HTTP_EXCEPTION.subflow:FCMComposite_1" xmi:id="FCMComposite_1_10" location="944,222">
         <translation xmi:type="utility:ConstantString" string="ICC0010_THROW_HTTP_EXCEPTION"/>
+      </nodes>
+      <nodes xmi:type="ComIbmMQOutput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_6" location="752,302" queueName="INT0080.GET.POSITION" transactionMode="no" newMsgId="true">
+        <translation xmi:type="utility:ConstantString" string="INT0080.GET.POSITION"/>
       </nodes>
       <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_5" targetNode="FCMComposite_1_2" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
       <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_7" targetNode="FCMComposite_1_1" sourceNode="FCMComposite_1_5" sourceTerminalName="OutTerminal.true" targetTerminalName="InTerminal.in"/>
@@ -43,6 +46,8 @@
       <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_3" targetNode="FCMComposite_1_5" sourceNode="FCMComposite_1_8" sourceTerminalName="OutTerminal.Output" targetTerminalName="InTerminal.in"/>
       <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_4" targetNode="FCMComposite_1_9" sourceNode="FCMComposite_1_4" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>
       <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_6" targetNode="FCMComposite_1_10" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.error" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_8" targetNode="FCMComposite_1_6" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.out1" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_11" targetNode="FCMComposite_1_9" sourceNode="FCMComposite_1_6" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>
     </composition>
     <propertyOrganizer/>
     <stickyBoard/>
