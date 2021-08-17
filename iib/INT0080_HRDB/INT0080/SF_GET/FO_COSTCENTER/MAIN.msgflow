@@ -6,6 +6,8 @@
     <translation xmi:type="utility:TranslatableString" key="MAIN" bundleName="INT0080/SF_GET/FO_COSTCENTER/MAIN" pluginId="INT0080_HRDB"/>
     <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj16/MAIN.gif"/>
     <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj30/MAIN.gif"/>
+    <longDescription xmi:type="utility:ConstantString" string="$MQSI MsgFlow = $URL$:MQSI$"/>
+    <version xmi:type="utility:ConstantString" string="$Id$"/>
     <composition>
       <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="590,166" dataSource="HRDB" computeExpression="esql://routine/INT0080.SF_GET.FO_COSTCENTER#GetFOCostCenter.Main" computeMode="destinationAndMessage">
         <translation xmi:type="utility:ConstantString" string="GetFOCostCenter"/>
