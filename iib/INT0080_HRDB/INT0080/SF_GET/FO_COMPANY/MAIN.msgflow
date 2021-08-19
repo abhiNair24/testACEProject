@@ -12,8 +12,8 @@
       <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="514,168" dataSource="HRDB" computeExpression="esql://routine/INT0080.SF_GET.FO_COMPANY#GetFOCompany.Main" computeMode="destinationAndMessage">
         <translation xmi:type="utility:ConstantString" string="GetFOCompany"/>
       </nodes>
-      <nodes xmi:type="ComIbmMQInput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="-4,156" queueName="INT0080.GET.COMPANY.TRIGGER" messageDomainProperty="XMLNSC">
-        <translation xmi:type="utility:ConstantString" string="INT0080.GET.COMPANY.TRIGGER"/>
+      <nodes xmi:type="ComIbmMQInput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="-4,156" queueName="INT0080.GET.FO.COMPANY.TRIGGER" messageDomainProperty="XMLNSC">
+        <translation xmi:type="utility:ConstantString" string="INT0080.GET.FO.COMPANY.TRIGGER"/>
       </nodes>
       <nodes xmi:type="ComIbmMQOutput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_3" location="927,170" queueName="INT0080.PROCESS.COMPANY" transactionMode="no" newMsgId="true">
         <translation xmi:type="utility:ConstantString" string="INT0080.PROCESS.COMPANY"/>
