@@ -87,6 +87,9 @@ CREATE COMPUTE MODULE CheckIfMoreToGet
 		SET Environment.SF.Meta.firstRun 	= false;
 		SET OutputRoot.Properties 			= InputRoot.Properties;
 		
+		-- To be able to set the same lastSyncDate for all rows updated by one trigger msg
+		SET OutputRoot.MQRFH2.usr.syncTime = Environment.SF.Meta.syncTime;
+		
 		-- Propagate message
 		CREATE LASTCHILD OF OutputRoot DOMAIN 'JSON' NAME 'JSON';
 		SET OutputRoot.JSON = InputRoot.JSON;
