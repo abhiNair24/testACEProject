@@ -11,10 +11,14 @@ CREATE COMPUTE MODULE GetPerPerson
 		DECLARE countReq	INT 1;
 		DECLARE sqlc 		CHAR;
 		DECLARE vHost 		CHAR;
+		DECLARE personIdExternalFilter CHAR;
 		DECLARE trigList	ROW;
 		
 		-- Extract source trigger list
 		SET trigList.list.parm[] = EVAL('LIST{' || InputRoot.XMLNSC.TriggerMsg.TriggerId || '}');
+		
+		-- If third parm provided - run for this personIdExternal only
+		SET personIdExternalFilter = trigList.list.parm[3];		
 		
 		-- Clean up synch table
 		SET sqlc = 'DELETE FROM ' || TBL_SYNCH_LOG || ' WHERE TYPE = ''Employee''';	
@@ -40,8 +44,8 @@ CREATE COMPUTE MODULE GetPerPerson
 			
 			-- If first run, then run query, else run queryMore
 			IF Environment.SF.Meta.firstRun = true THEN
-				SET Environment.SF.Meta.RequestURL = GetQPerPerson(vHost);					
-				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = GetQPerPerson(vHost);				
+				SET Environment.SF.Meta.RequestURL = GetQPerPerson(vHost, personIdExternalFilter);					
+				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = Environment.SF.Meta.RequestURL;				
 			ELSEIF Environment.SF.Meta.firstRun = false THEN
 				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = Environment.SF.Meta.Next;		
 			END IF;
@@ -62,13 +66,14 @@ CREATE COMPUTE MODULE GetPerPerson
 		RETURN FALSE;
 	END;
 
-	CREATE FUNCTION GetQPerPerson(IN vHost CHAR
+	CREATE FUNCTION GetQPerPerson(IN vHost CHAR, IN personIdExternalFilter CHAR
 	) RETURNS CHAR BEGIN			 		
 		
 		DECLARE vObject CHAR 'PerPerson';
 		DECLARE vSelect CHAR '$select=';
 		DECLARE vExpand CHAR '$expand=';
 		DECLARE vPaging CHAR 'paging=snapshot';
+		DECLARE vFilter CHAR '';
 
 		-- KLJ DEBUG DECLARE vCustom CHAR 'customPageSize=100';		
 		DECLARE vCustom CHAR 'customPageSize=1000';		
@@ -183,7 +188,11 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vExpand = vExpand || 'employmentNav/workOrderNav,';
 		SET vExpand = vExpand || 'employmentNav/workOrderNav/workerTypeNav';	
 	
-		RETURN vHost || vObject || '?' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
+		IF personIdExternalFilter is not NULL THEN
+			SET vFilter = '$filter=personIdExternal+eq+''' || personIdExternalFilter || '''&';
+		END IF;
+	
+		RETURN vHost || vObject || '?' || vFilter || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
 		
 		--RETURN vHost || vObject || '?' || '$filter=personIdExternal eq ''882609''&' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
 		
