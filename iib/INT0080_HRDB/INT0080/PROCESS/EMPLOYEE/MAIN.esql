@@ -4,7 +4,7 @@ BROKER SCHEMA INT0080.PROCESS.EMPLOYEE
 
 -- Working tables
 DECLARE TBL_PERSON		CONSTANT CHARACTER 'EmpPerson';
-DECLARE TBL_EMPLOYMENT	CONSTANT CHARACTER 'EmpEmploymentTemp';
+DECLARE TBL_EMPLOYMENT	CONSTANT CHARACTER 'EmpEmployment';
 
 
 CREATE COMPUTE MODULE ProcessEmployee
@@ -327,14 +327,58 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 
 	CREATE PROCEDURE GetLastWorkingDay(IN inRef REFERENCE,
 									   IN vEmpAr INT,
-									   INOUT lastWorkingDay TIMESTAMP) BEGIN
+									   INOUT lastWorkingDay TIMESTAMP,
+									   INOUT vIgnore BOOLEAN) BEGIN
 		
-		-- External employee
-		IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN								
-			SET lastWorkingDay = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].endDate);			
-		ELSE -- Permanent/Temporary employee			
-			SET lastWorkingDay = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].lastDateWorked);
-		END IF;				
+		DECLARE ldw TIMESTAMP;
+		DECLARE termDate TIMESTAMP;
+		DECLARE startEmpDate TIMESTAMP;
+		DECLARE endJobDate TIMESTAMP;
+		DECLARE todayDate TIMESTAMP;
+		DECLARE vtodayDate CHAR;
+		
+		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000';
+		SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss.SSS');
+		
+		SET ldw = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].lastDateWorked);
+		SET termDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].endDate);
+	
+		-- Active employee
+		IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.externalCode <> 'T') THEN 
+			
+			-- External employee
+			IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN								
+				IF (todayDate = termDate) THEN
+					SET lastWorkingDay = termDate;
+				END IF;
+			ELSE
+				-- Permanent/Temporary employee
+				IF (todayDate = ldw OR (ldw < todayDate AND termDate >= todayDate)) THEN
+					SET lastWorkingDay = ldw;
+				END IF;	
+			END IF;			
+		
+		-- Terminated employee
+		ELSEIF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.externalCode = 'T') THEN		
+			IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN
+				SET lastWorkingDay = termDate;								
+			ELSE
+				SET lastWorkingDay = ldw;
+			END IF;
+			
+			-- If last worked date still is null for a terminated employee, then someything is wrong so log and ignore it
+			IF (lastWorkingDay IS NULL) THEN 
+				SET vIgnore = TRUE;
+				CALL INT0080.COMMON.InsertSynchLog('Employee',
+												   'Ignore',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'LastWorkingDay',
+												   'Last working day is missing for terminated employee (potentially a rehire)');	
+			END IF;		
+								
+		END IF;						
 	END;							
 
 	CREATE FUNCTION GetIsManager(IN teamMembersSize INT
@@ -641,16 +685,17 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		DECLARE employeeClass 			CHAR;
 		DECLARE employeeSubClass 		CHAR;
 		DECLARE employmentType			CHAR;
-		DECLARE standardHours			CHAR;
-		DECLARE workingDaysPerWeek		CHAR;
-		DECLARE fullTimeEquivalent		CHAR;
+		DECLARE standardHours			FLOAT;
+		DECLARE workingDaysPerWeek		FLOAT;
+		DECLARE fullTimeEquivalent		FLOAT;
 		DECLARE employmentStatus		CHAR;
-		DECLARE jobStartDate			TIMESTAMP;
 		DECLARE seniorityDate			TIMESTAMP;
-		DECLARE lastDateWorked			TIMESTAMP;
+		DECLARE recruitDate		 		TIMESTAMP;
 		DECLARE dateOfContractTerm		TIMESTAMP;
+		DECLARE lastDateWorked			TIMESTAMP;
 		DECLARE event					CHAR;
 		DECLARE eventReason				CHAR;
+		DECLARE eventDate				TIMESTAMP;
 		DECLARE isManager				BOOLEAN;
 		DECLARE businessEmail			CHAR;
 		DECLARE businessMobCtryCode		CHAR;
@@ -679,6 +724,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 
 
 		SET personIdExternal = TRIM(LEFT(inRef.personIdExternal, 32));
+	
+		-- Get lastDateWorked (done before / outside if(vIgnore=FALSE) since it can cause vIgnore to be set. 
+		CALL GetLastWorkingDay(inRef, vEmpAr, lastDateWorked, vIgnore);
 		
 		IF (vIgnore = FALSE) THEN
 			SET userId 					= inRef.employmentNav.results.Item[vEmpAr].userId;	
@@ -692,12 +740,13 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET businessUnit			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.businessUnit, 32));	
 			SET orgUnitId 				= TRIM(LEFT(GetOrgunitId(department, division, businessUnit), 32));			
 			SET costCenterId 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.costCenter, 32));
-	      	SET standardHours 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.standardHours, 10));
-	      	SET workingDaysPerWeek 		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.workingDaysPerWeek, 10));
-	      	SET fullTimeEquivalent 		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.fte, 10));
-		    SET jobStartDate			= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate);
+	      	SET standardHours 			= CAST(TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.standardHours, 10)) AS FLOAT);
+	      	SET workingDaysPerWeek 		= CAST(TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.workingDaysPerWeek, 10)) AS FLOAT);
+	      	SET fullTimeEquivalent 		= CAST(TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.fte, 10)) AS FLOAT);
 			SET isManager				= GetIsManager(inRef.employmentNav.results.Item[vEmpAr].userNav.teamMembersSize);
+			SET recruitDate				= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate);
 			SET eventReason				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.eventReasonNav.name , 100));
+		    SET eventDate				= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate);
 			SET buildingNumber			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom01, 255));
 			SET roomNumber				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom02, 255));
 			SET managerUserId			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.managerUserNav.userId, 100));	
@@ -743,8 +792,6 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			-- Get seniorityDate
 			CALL GetSeniorityDate(globAssign, inRef, vEmpAr, seniorityDate);	
 
-			-- Get lastDateWorked
-			CALL GetLastWorkingDay(inRef, vEmpAr, lastDateWorked);
 			
 			-- Get dateOfContractTerm
 			IF (lastDateWorked IS NOT NULL) THEN
@@ -808,14 +855,15 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					COALESCE(employmentStatus, '') <> COALESCE(Environment.tmp.Employment.employmentStatus, '') OR
 					isManager <> Environment.tmp.Employment.isManager OR
 					COALESCE(seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-					COALESCE(jobStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.jobStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(dateOfContractTerm, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.dateOfContractTermination, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
 					COALESCE(standardHours, '') <> COALESCE(Environment.tmp.Employment.standardHours, '') OR
 					COALESCE(workingDaysPerWeek, '') <> COALESCE(Environment.tmp.Employment.workingDaysPerWeek, '') OR
 					COALESCE(fullTimeEquivalent, '') <> COALESCE(Environment.tmp.Employment.fullTimeEquivalent, '') OR
 					COALESCE(event, '') <> COALESCE(Environment.tmp.Employment.event, '') OR
 					COALESCE(eventReason, '') <> COALESCE(Environment.tmp.Employment.eventReason, '') OR
-					COALESCE(lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-					COALESCE(dateOfContractTerm, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.dateOfContractTermination, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
 					COALESCE(businessEmail, '') <> COALESCE(Environment.tmp.Employment.businessEmail, '') OR
 					COALESCE(businessMobCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessMobileCountryCode, '') OR
 					COALESCE(businessMobPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessMobilePhoneNumber, '') OR
@@ -831,7 +879,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 							COALESCE(orgUnitLevel3, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel3, '') OR
 							COALESCE(orgUnitLevel4, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel4, '') OR
 							COALESCE(orgUnitLevel5, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel5, '') OR
-							COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel5, '') OR
+							COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel6, '') OR
 							COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Employment.contingentWorkerAdminPositionId, '') OR
 							COALESCE(parentPositionId, '') <> COALESCE(Environment.tmp.Employment.parentPositionId, '')
 						)
@@ -874,12 +922,13 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 								 	  standardHours,
 								 	  workingDaysPerWeek,
 								 	  fullTimeEquivalent,
-								 	  jobStartDate,
 								 	  seniorityDate,
+								 	  recruitDate,
 								 	  lastDateWorked,
 								 	  dateOfContractTerm,
 								 	  event,
 								 	  eventReason,
+								 	  eventDate,
 								 	  isManager,
 								 	  businessEmail,
 								 	  businessMobCtryCode,
@@ -893,18 +942,21 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 								 	  parentPositionId,						 	  
 								 	  datbaseAction,
 								 	  syncTime);
-			END IF;				          	   		         	        
-		ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
+			END IF;
+		END IF; 				          	   		         	        
+		
+		-- KLJ: ELSEIF removed since lastSyncDate should NOT be updated when vIgnore=TRUE ('error situation'). 
+		-- ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
 			
 			-- Get current employee in table Employment
-			CALL GetCurrentEmpInEmployment(personIdExternal);
+			-- CALL GetCurrentEmpInEmployment(personIdExternal);
 			
-			IF (CARDINALITY(Environment.tmp.Employment[]) > 0) THEN
-				UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
-				SET lastSyncDate = syncTime
-				WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
-			END IF;
-		END IF;
+			-- IF (CARDINALITY(Environment.tmp.Employment[]) > 0) THEN
+			--	UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+			--	SET lastSyncDate = syncTime
+			--	WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+			-- END IF;
+		-- END IF;
 	END;
 
 	CREATE PROCEDURE GetCurrentEmpInEmployment(IN personIdExternal CHAR) BEGIN			
@@ -935,12 +987,13 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				T.employmentStatus,
 				T.isManager,
 				T.seniorityDate,
-				T.jobStartDate,			
+				T.recruitDate,
 				T.standardHours,
 				T.workingDaysPerWeek,
 				T.fullTimeEquivalent,
 				T.event,
 				T.eventReason,
+				T.eventDate,	
 				T.lastDateWorked,
 				T.dateOfContractTermination,			
 				T.businessEmail,
@@ -982,15 +1035,16 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 									  IN employeeSubClass CHAR,	
 									  IN employmentType CHAR,
 									  IN employmentStatus CHAR,
-									  IN standardHours CHAR,
-									  IN workingDaysPerWeek CHAR,
-									  IN fullTimeEquivalent CHAR,
-									  IN jobStartDate TIMESTAMP,
+									  IN standardHours FLOAT,
+									  IN workingDaysPerWeek FLOAT,
+									  IN fullTimeEquivalent FLOAT,
 									  IN seniorityDate TIMESTAMP,
+									  IN recruitDate TIMESTAMP,
 									  IN lastDateWorked TIMESTAMP,
 									  IN dateOfContractTerm TIMESTAMP,
 									  IN event CHAR,
 									  IN eventReason CHAR,
+									  IN eventDate TIMESTAMP,
 									  IN isManager BOOLEAN,
 									  IN businessEmail CHAR,
 									  IN businessMobCtryCode CHAR,
@@ -1039,12 +1093,13 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 										   		  standardHours,
 										   		  workingDaysPerWeek,
 										   		  fullTimeEquivalent,
-										   		  jobStartDate,
 										   		  seniorityDate,
+										   		  recruitDate,
 										   		  lastDateWorked,
 										   		  dateOfContractTermination,
 										   		  event,
 										   		  eventReason,
+										   		  eventDate,
 										   		  isManager,
 										   		  businessEmail,
 										   		  businessMobileCountryCode,
@@ -1086,12 +1141,13 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				standardHours,
 				workingDaysPerWeek,
 				fullTimeEquivalent,
-				jobStartDate,
 				seniorityDate,
+	   		    recruitDate,
 				lastDateWorked,
 				dateOfContractTerm,
 				TRIM(event),
 				TRIM(eventReason),
+				eventDate,
 				isManager,
 				businessEmail,
 				businessMobCtryCode,
