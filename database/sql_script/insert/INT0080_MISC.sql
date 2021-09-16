@@ -11,7 +11,7 @@
 *******************************************************************
 * Development Environment
 *******************************************************************
-Insert into IIBUSER.INT0080_MISC (URL,UNAME,PW,ISSUED_BY) values ('https://api12preview.sapsf.eu/odata/v2/','API_IC@LundbeckDev','Rockandroll2020','LundbeckDev');
+Insert into IIBUSER.INT0080_MISC (URL,UNAME,PW,ISSUED_BY) values ('https://api12preview.sapsf.eu/odata/v2/','API_IC@LundbeckDev','ijn2e4AB3ZD8kzF','LundbeckDev');
 
 *******************************************************************
 * Test/QA Environment
