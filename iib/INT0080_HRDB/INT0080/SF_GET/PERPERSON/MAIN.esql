@@ -34,7 +34,6 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET Environment.SF.Meta.syncTime    = CURRENT_TIMESTAMP; 
 						
  		WHILE (Environment.SF.Meta.hasMore = true AND countReq <= 100) DO
--- KLJ DEBUG		WHILE (Environment.SF.Meta.hasMore = true AND countReq <= 3) DO
 		
 			SET OutputRoot.Properties.CodedCharSetId 			= 1208;						
 			SET OutputRoot.Properties.IdentitySourceType 		= 'usernameAndPassword';
@@ -57,11 +56,12 @@ CREATE COMPUTE MODULE GetPerPerson
 		
 		SET OutputRoot.Properties = InputRoot.Properties;
 		
+		-- ABILITY TO TRIGGER POSITION UPDATE REMOVED SINCE TABLE DELETED
 		-- Only run sequencial if it is a trigger message containing that param
-		IF (trigList.list.parm[2] = 'Sequential') THEN			
-			SET OutputRoot = InputRoot;
-			PROPAGATE TO TERMINAL 'out1';		
-		END IF;	
+		-- IF (trigList.list.parm[2] = 'Sequential') THEN			
+		--	SET OutputRoot = InputRoot;
+		--	PROPAGATE TO TERMINAL 'out1';		
+		-- END IF;	
 									
 		RETURN FALSE;
 	END;
@@ -108,6 +108,7 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vSelect = vSelect || 'employmentNav/endDate,';
 		SET vSelect = vSelect || 'employmentNav/userId,';
 		SET vSelect = vSelect || 'employmentNav/seniorityDate,';
+		SET vSelect = vSelect || 'employmentNav/originalStartDate,';
 		SET vSelect = vSelect || 'employmentNav/lastDateWorked,';
 		SET vSelect = vSelect || 'employmentNav/payrollEndDate,';
 		SET vSelect = vSelect || 'employmentNav/empGlobalAssignmentNav/userId,';
@@ -142,7 +143,7 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/externalCode,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels/locale,';		
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels/label,';		
-		--SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionEntryDate,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionEntryDate,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/locationNav/externalCode,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/locationNav/name,';
 
@@ -161,7 +162,9 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vSelect = vSelect || 'employmentNav/userNav/custom02,';
 		SET vSelect = vSelect || 'employmentNav/userNav/dateOfBirth,';
 		SET vSelect = vSelect || 'employmentNav/userNav/teamMembersSize,';
-		SET vSelect = vSelect || 'employmentNav/workOrderNav/workerType,';
+--		SET vSelect = vSelect || 'employmentNav/workOrderNav/effectiveStartDate,';
+--		SET vSelect = vSelect || 'employmentNav/workOrderNav/startDate,';
+ 		SET vSelect = vSelect || 'employmentNav/workOrderNav/workerType,';
 		SET vSelect = vSelect || 'employmentNav/workOrderNav/workerTypeNav/label_defaultValue,';
 
 

@@ -477,45 +477,72 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		END IF;		
 		
 		IF (datbaseAction = 'Insert') THEN
-			CALL InsertPerson(personIdExternal,
-							  initials,
-							  salutation,
-							  gender,
-							  nationality,
-							  nativePrefLang,
-							  dateOfBirth,
-							  country,
-							  state,
-							  city,
-							  zipCode,
-							  address1,
-							  address2,
-							  address3,
-							  address4,
-							  personalEmail,
-							  privPhoneCtryCode,
-							  privPhoneNbr,
-							  syncTime);
+			INSERT INTO Database.dbo.{TBL_PERSON}(
+				  personIdExternal,
+				  initials,
+				  salutation,
+				  gender,
+				  nationality,
+				  nativePreferredLanguage,
+				  dateOfBirth,
+				  country,
+				  state,
+				  city,
+				  zipCode,
+				  address1,
+				  address2,
+				  address3,
+				  address4,
+				  personalEmail,
+				  privatePhoneCountryCode,
+				  privatePhoneNumber,
+				  recordLastUpdated,
+				  lastSyncDate)
+			VALUES (personIdExternal,	
+					initials,						
+					salutation,			
+					gender,					
+					nationality,		
+					nativePrefLang,				
+					dateOfBirth,								
+					country,						
+					state,							
+					city,		
+					zipCode,													
+					address1,					
+					address2,												
+					address3,				
+					address4,				
+					personalEmail,													
+					privPhoneCtryCode,
+					privPhoneNbr,									
+					syncTime,	-- recordLastUpdated
+					syncTime);	-- lastSyncDate	
 		ELSEIF (datbaseAction = 'Update') THEN
-			CALL UpdatePerson(personIdExternal,
-							  initials,
-							  salutation,
-							  gender,
-							  nationality,
-							  nativePrefLang,
-							  dateOfBirth,
-							  country,
-							  state,
-							  city,
-							  zipCode,
-							  address1,
-							  address2,
-							  address3,
-							  address4,
-							  personalEmail,
-							  privPhoneCtryCode,
-							  privPhoneNbr,
-							  syncTime);
+			
+			UPDATE Database.dbo.{TBL_PERSON} AS T
+				SET personIdExternal 		= personIdExternal, 
+					initials 				= initials,
+					salutation 				= salutation,
+					gender 					= gender,
+					nationality 			= nationality,
+					nativePreferredLanguage	= nativePrefLang,
+					dateOfBirth				= dateOfBirth,
+					country					= country,
+					state					= state,
+					city					= city,
+					zipCode					= zipCode,
+					address1				= address1,
+					address2				= address2,
+					address3				= address3,
+					address4				= address4,
+					personalEmail 			= personalEmail,
+					privatePhoneCountryCode = privPhoneCtryCode,
+					privatePhoneNumber 		= privPhoneNbr,
+					recordLastUpdated 		= syncTime,
+					lastSyncDate 			= syncTime
+				WHERE T.personIdExternal = personIdExternal;
+		
 		ELSE -- Update lastSyncDate even if any other update should be ignored
 		
 			-- Get current person in table Person
@@ -555,112 +582,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		WHERE 	T.personIdExternal = personIdExternal;					
 	END;
 
-	CREATE PROCEDURE InsertPerson(IN personIdExternal CHAR,
-								  IN initials CHAR,
-								  IN salutation CHAR,
-								  IN gender CHAR,
-								  IN nationality CHAR,
-								  IN nativePrefLang CHAR,
-								  IN dateOfBirth TIMESTAMP,
-								  IN country CHAR,
-								  IN state CHAR,
-								  IN city CHAR,
-								  IN zipCode CHAR,
-								  IN address1 CHAR,
-								  IN address2 CHAR,
-								  IN address3 CHAR,
-								  IN address4 CHAR,
-								  IN personalEmail CHAR,
-								  IN privPhoneCtryCode CHAR,
-								  IN privPhoneNbr CHAR,
-								  IN syncTime TIMESTAMP) BEGIN
 
-		INSERT INTO Database.dbo.{TBL_PERSON}(personIdExternal,
-											  initials,
-											  salutation,
-											  gender,
-											  nationality,
-											  nativePreferredLanguage,
-											  dateOfBirth,
-											  country,
-											  state,
-											  city,
-											  zipCode,
-											  address1,
-											  address2,
-											  address3,
-											  address4,
-											  personalEmail,
-											  privatePhoneCountryCode,
-											  privatePhoneNumber,
-											  recordLastUpdated,
-											  lastSyncDate)
-		VALUES (personIdExternal,	
-				initials,						
-				salutation,			
-				gender,					
-				nationality,		
-				nativePrefLang,				
-				dateOfBirth,								
-				country,						
-				state,							
-				city,		
-				zipCode,													
-				address1,					
-				address2,												
-				address3,				
-				address4,				
-				personalEmail,													
-				privPhoneCtryCode,
-				privPhoneNbr,									
-				syncTime,	-- recordLastUpdated
-				syncTime);	-- lastSyncDate	
-	END;
-
-	CREATE PROCEDURE UpdatePerson(IN personIdExternal CHAR,
-								  IN initials CHAR,
-								  IN salutation CHAR,
-								  IN gender CHAR,
-								  IN nationality CHAR,
-								  IN nativePrefLang CHAR,
-								  IN dateOfBirth TIMESTAMP,
-								  IN country CHAR,
-								  IN state CHAR,
-								  IN city CHAR,
-								  IN zipCode CHAR,
-								  IN address1 CHAR,
-								  IN address2 CHAR,
-								  IN address3 CHAR,
-								  IN address4 CHAR,
-								  IN personalEmail CHAR,
-								  IN privPhoneCtryCode CHAR,
-								  IN privPhoneNbr CHAR, 
-								  IN syncTime TIMESTAMP) BEGIN
-
-		UPDATE Database.dbo.{TBL_PERSON} AS T
-		SET personIdExternal 		= personIdExternal, 
-			initials 				= initials,
-			salutation 				= salutation,
-			gender 					= gender,
-			nationality 			= nationality,
-			nativePreferredLanguage	= nativePrefLang,
-			dateOfBirth				= dateOfBirth,
-			country					= country,
-			state					= state,
-			city					= city,
-			zipCode					= zipCode,
-			address1				= address1,
-			address2				= address2,
-			address3				= address3,
-			address4				= address4,
-			personalEmail 			= personalEmail,
-			privatePhoneCountryCode = privPhoneCtryCode,
-			privatePhoneNumber 		= privPhoneNbr,
-			recordLastUpdated 		= syncTime,
-			lastSyncDate 			= syncTime
-		WHERE T.personIdExternal = personIdExternal;
-	END;
-	
 	CREATE PROCEDURE ProcessEmployment(IN inRef REFERENCE,
 								   	   IN vEmpAr INT,
 								   	   IN workerType CHAR,
@@ -690,7 +612,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		DECLARE fullTimeEquivalent		FLOAT;
 		DECLARE employmentStatus		CHAR;
 		DECLARE seniorityDate			TIMESTAMP;
+		DECLARE originalStartDate		TIMESTAMP;
 		DECLARE recruitDate		 		TIMESTAMP;
+		DECLARE positionEntryDate 		TIMESTAMP;
 		DECLARE dateOfContractTerm		TIMESTAMP;
 		DECLARE lastDateWorked			TIMESTAMP;
 		DECLARE event					CHAR;
@@ -745,6 +669,13 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 	      	SET fullTimeEquivalent 		= CAST(TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.fte, 10)) AS FLOAT);
 			SET isManager				= GetIsManager(inRef.employmentNav.results.Item[vEmpAr].userNav.teamMembersSize);
 			SET recruitDate				= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate);
+			SET originalStartDate		= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].originalStartDate);
+			SET positionEntryDate		= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionEntryDate);
+
+			-- Try use workOrder effectiveStartDate if positionEntryDate is not set (consultants and other non-employees). 
+--			SET positionEntryDate		= COALESCE (INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionEntryDate),
+--													INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].workOrderNav.results.Item.startDate) );
+
 			SET eventReason				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.eventReasonNav.name , 100));
 		    SET eventDate				= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate);
 			SET buildingNumber			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom01, 255));
@@ -831,62 +762,70 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			-- Get current employee in table Employment
 			CALL GetCurrentEmpInEmployment(personIdExternal);	
 			
-
+			-- Look for any differences on the record (and save which rule triggers mismatch for debugging purposes)
+			DECLARE firstMismatch CHAR '';
+				
+			IF     (COALESCE(userId, '') <> COALESCE(Environment.tmp.Employment.userId, '') ) THEN SET firstMismatch = 'userId'; 
+			ELSEIF (COALESCE(initials, '') <> COALESCE(Environment.tmp.Employment.initials, '') ) THEN SET firstMismatch = 'initials';
+			ELSEIF (COALESCE(firstName, '') <> COALESCE(Environment.tmp.Employment.firstName, '') ) THEN SET firstMismatch = 'firstName';
+			ELSEIF (COALESCE(lastName, '') <> COALESCE(Environment.tmp.Employment.lastName, '') ) THEN SET firstMismatch = 'lastName';
+			ELSEIF (COALESCE(companyCode, '') <> COALESCE(Environment.tmp.Employment.companyCode, '') ) THEN SET firstMismatch = 'companyCode';
+			ELSEIF (COALESCE(locationId, '') <> COALESCE(Environment.tmp.Employment.locationId, '') ) THEN SET firstMismatch = 'locationId';
+			ELSEIF (COALESCE(orgUnitId, '') <> COALESCE(Environment.tmp.Employment.orgUnitId, '') ) THEN SET firstMismatch = 'orgUnitId';
+			ELSEIF (COALESCE(department, '') <> COALESCE(Environment.tmp.Employment.department, '') ) THEN SET firstMismatch = 'department';
+			ELSEIF (COALESCE(division, '') <> COALESCE(Environment.tmp.Employment.division, '') ) THEN SET firstMismatch = 'division';
+			ELSEIF (COALESCE(businessUnit, '') <> COALESCE(Environment.tmp.Employment.businessUnit, '') ) THEN SET firstMismatch = 'businessUnit';
+			ELSEIF (COALESCE(positionId, '') <> COALESCE(Environment.tmp.Employment.positionId, '') ) THEN SET firstMismatch = 'positionId';
+			ELSEIF (COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.Employment.costCenterId, '') ) THEN SET firstMismatch = 'costCenterId';
+			ELSEIF (COALESCE(employeeClass, '') <> COALESCE(Environment.tmp.Employment.employeeClass, '') ) THEN SET firstMismatch = 'employeeClass';
+			ELSEIF (COALESCE(employeeSubClass, '') <> COALESCE(Environment.tmp.Employment.employeeSubClass, '') ) THEN SET firstMismatch = 'employeeSubClass';
+			ELSEIF (COALESCE(employmentType, '') <> COALESCE(Environment.tmp.Employment.employmentType, '') ) THEN SET firstMismatch = 'employmentType';
+			ELSEIF (COALESCE(employmentStatus, '') <> COALESCE(Environment.tmp.Employment.employmentStatus, '') ) THEN SET firstMismatch = 'employmentStatus';
+			ELSEIF (isManager <> Environment.tmp.Employment.isManager ) THEN SET firstMismatch = 'isManager';
+			ELSEIF (COALESCE(seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'seniorityDate';
+			ELSEIF (COALESCE(originalStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.originalStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'originalStartDate';
+			ELSEIF (COALESCE(recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'recruitDate';
+			ELSEIF (COALESCE(positionEntryDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.positionEntryDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'positionEntryDate';
+			ELSEIF (COALESCE(dateOfContractTerm, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.dateOfContractTermination, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'dateOfContractTermination';
+			ELSEIF (COALESCE(lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'lastDateWorked';
+			ELSEIF (CAST(COALESCE(standardHours, 99999)  AS CHAR FORMAT '##0.00' ) <> CAST(COALESCE(Environment.tmp.Employment.standardHours, 99999)  AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'standardHours';
+			ELSEIF (CAST(COALESCE(workingDaysPerWeek, 99999)  AS CHAR FORMAT '##0.00' ) <>  CAST(COALESCE(Environment.tmp.Employment.workingDaysPerWeek, 99999) AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'workingDaysPerWeek';
+			ELSEIF (CAST(COALESCE(fullTimeEquivalent, 99999)  AS CHAR FORMAT '##0.00' ) <>  CAST(COALESCE(Environment.tmp.Employment.fullTimeEquivalent, 99999) AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'fullTimeEquivalent';
+			ELSEIF (COALESCE(event, '') <> COALESCE(Environment.tmp.Employment.event, '') ) THEN SET firstMismatch = 'event';
+			ELSEIF (COALESCE(eventReason, '') <> COALESCE(Environment.tmp.Employment.eventReason, '') ) THEN SET firstMismatch = 'eventReason';
+			ELSEIF (COALESCE(eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'eventDate';
+			ELSEIF (COALESCE(businessEmail, '') <> COALESCE(Environment.tmp.Employment.businessEmail, '') ) THEN SET firstMismatch = 'businessEmail';
+			ELSEIF (COALESCE(businessMobCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessMobileCountryCode, '') ) THEN SET firstMismatch = 'businessMobileCountryCode';
+			ELSEIF (COALESCE(businessMobPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessMobilePhoneNumber, '') ) THEN SET firstMismatch = 'businessMobilePhoneNumber';
+			ELSEIF (COALESCE(businessLandCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessLandlineCountryCode, '') ) THEN SET firstMismatch = 'businessLandlineCountryCode';
+			ELSEIF (COALESCE(businessLandPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessLandlinePhoneNumber, '') ) THEN SET firstMismatch = 'businessLandlinePhoneNumber';
+			ELSEIF (COALESCE(buildingNumber, '') <> COALESCE(Environment.tmp.Employment.buildingNumber, '') ) THEN SET firstMismatch = 'buildingNumber';
+			ELSEIF (COALESCE(roomNumber, '') <> COALESCE(Environment.tmp.Employment.roomNumber, '') ) THEN SET firstMismatch = 'roomNumber';
+			ELSEIF (COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.Employment.managerUserId, '') ) THEN SET firstMismatch = 'managerUserId';
+			ELSEIF ( ( (dateOfContractTerm IS NULL OR COALESCE(dateOfContractTerm, '') >= todayDate) AND 
+					 ( 	COALESCE(positionName, '') <> COALESCE(Environment.tmp.Employment.positionName, '') OR
+						COALESCE(orgUnitLevel1, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel1, '') OR
+						COALESCE(orgUnitLevel2, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel2, '') OR
+						COALESCE(orgUnitLevel3, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel3, '') OR
+						COALESCE(orgUnitLevel4, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel4, '') OR
+						COALESCE(orgUnitLevel5, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel5, '') OR
+						COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel6, '') OR
+						COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Employment.contingentWorkerAdminPositionId, '') OR
+						COALESCE(parentPositionId, '') <> COALESCE(Environment.tmp.Employment.parentPositionId, '')
+				  	) 
+				)) THEN 
+				SET firstMismatch = 'finalBlock';
+			END IF;
+			 
 			/* Check if insert new employee information or update current employee information or 
 			   just update lastSyncDate for a current employee */
 			   	-- We don't want to update fields derived by positionNav after termination (position can be reused and fields can change)
 			IF (CARDINALITY(Environment.tmp.Employment[]) = 0) THEN
 				SET datbaseAction = 'Insert';
-			ELSEIF (COALESCE(userId, '') <> COALESCE(Environment.tmp.Employment.userId, '') OR
-					COALESCE(initials, '') <> COALESCE(Environment.tmp.Employment.initials, '') OR
-					COALESCE(firstName, '') <> COALESCE(Environment.tmp.Employment.firstName, '') OR
-					COALESCE(lastName, '') <> COALESCE(Environment.tmp.Employment.lastName, '') OR
-					COALESCE(companyCode, '') <> COALESCE(Environment.tmp.Employment.companyCode, '') OR
-					COALESCE(locationId, '') <> COALESCE(Environment.tmp.Employment.locationId, '') OR
-					COALESCE(orgUnitId, '') <> COALESCE(Environment.tmp.Employment.orgUnitId, '') OR
-					COALESCE(department, '') <> COALESCE(Environment.tmp.Employment.department, '') OR
-					COALESCE(division, '') <> COALESCE(Environment.tmp.Employment.division, '') OR
-					COALESCE(businessUnit, '') <> COALESCE(Environment.tmp.Employment.businessUnit, '') OR
-					COALESCE(positionId, '') <> COALESCE(Environment.tmp.Employment.positionId, '') OR
-					COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.Employment.costCenterId, '') OR
-					COALESCE(employeeClass, '') <> COALESCE(Environment.tmp.Employment.employeeClass, '') OR
-					COALESCE(employeeSubClass, '') <> COALESCE(Environment.tmp.Employment.employeeSubClass, '') OR
-					COALESCE(employmentType, '') <> COALESCE(Environment.tmp.Employment.employmentType, '') OR
-					COALESCE(employmentStatus, '') <> COALESCE(Environment.tmp.Employment.employmentStatus, '') OR
-					isManager <> Environment.tmp.Employment.isManager OR
-					COALESCE(seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-					COALESCE(recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-					COALESCE(dateOfContractTerm, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.dateOfContractTermination, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-					COALESCE(lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-					COALESCE(standardHours, '') <> COALESCE(Environment.tmp.Employment.standardHours, '') OR
-					COALESCE(workingDaysPerWeek, '') <> COALESCE(Environment.tmp.Employment.workingDaysPerWeek, '') OR
-					COALESCE(fullTimeEquivalent, '') <> COALESCE(Environment.tmp.Employment.fullTimeEquivalent, '') OR
-					COALESCE(event, '') <> COALESCE(Environment.tmp.Employment.event, '') OR
-					COALESCE(eventReason, '') <> COALESCE(Environment.tmp.Employment.eventReason, '') OR
-					COALESCE(eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-					COALESCE(businessEmail, '') <> COALESCE(Environment.tmp.Employment.businessEmail, '') OR
-					COALESCE(businessMobCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessMobileCountryCode, '') OR
-					COALESCE(businessMobPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessMobilePhoneNumber, '') OR
-					COALESCE(businessLandCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessLandlineCountryCode, '') OR
-					COALESCE(businessLandPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessLandlinePhoneNumber, '') OR
-					COALESCE(buildingNumber, '') <> COALESCE(Environment.tmp.Employment.buildingNumber, '') OR
-					COALESCE(roomNumber, '') <> COALESCE(Environment.tmp.Employment.roomNumber, '') OR
-					COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.Employment.managerUserId, '') OR
-					( (dateOfContractTerm IS NULL OR COALESCE(dateOfContractTerm, '') >= todayDate) AND 
-						( 	COALESCE(positionName, '') <> COALESCE(Environment.tmp.Employment.positionName, '') OR
-							COALESCE(orgUnitLevel1, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel1, '') OR
-							COALESCE(orgUnitLevel2, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel2, '') OR
-							COALESCE(orgUnitLevel3, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel3, '') OR
-							COALESCE(orgUnitLevel4, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel4, '') OR
-							COALESCE(orgUnitLevel5, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel5, '') OR
-							COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel6, '') OR
-							COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Employment.contingentWorkerAdminPositionId, '') OR
-							COALESCE(parentPositionId, '') <> COALESCE(Environment.tmp.Employment.parentPositionId, '')
-						)
-					)) THEN
-				
-				SET datbaseAction = 'Update';				
-				
+			ELSEIF  ( firstMismatch <> '') THEN 
+				SET datbaseAction = 'Update';
+				-- For debugging purposes:
+				SET Environment.firstMismatch = firstMismatch; 					
 			ELSE -- Update existing record with a lastSyncDate
 				UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
 				SET lastSyncDate = syncTime
@@ -895,53 +834,115 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			
 			-- Insert new Employment information
 			IF (datbaseAction = 'Insert' OR datbaseAction = 'Update') THEN
-				CALL UpsertEmployment(userId,
-								 	  personIdExternal,
-								 	  initials,
-									  firstName,
-							  		  lastName,
-								 	  companyCode,
-								 	  locationId,
-								 	  orgUnitId,
-								 	  department,
-								 	  division,
-								 	  businessUnit,
-								 	  orgUnitLevel1,								 	  
-								 	  orgUnitLevel2,
-								 	  orgUnitLevel3,
-								 	  orgUnitLevel4,
-								 	  orgUnitLevel5,
-								 	  orgUnitLevel6,
-								 	  positionId,
-								 	  positionName,
-								 	  costCenterId,
-								 	  employeeClass,
-								 	  employeeSubClass,
-								 	  employmentType,
-								 	  employmentStatus,
-								 	  standardHours,
-								 	  workingDaysPerWeek,
-								 	  fullTimeEquivalent,
-								 	  seniorityDate,
-								 	  recruitDate,
-								 	  lastDateWorked,
-								 	  dateOfContractTerm,
-								 	  event,
-								 	  eventReason,
-								 	  eventDate,
-								 	  isManager,
-								 	  businessEmail,
-								 	  businessMobCtryCode,
-								 	  businessMobPhoneNbr,
-								 	  businessLandCtryCode,
-								 	  businessLandPhoneNbr,
-								 	  buildingNumber,
-								 	  roomNumber,
-								 	  managerUserId,
-								 	  contWrkAdmPositionId,
-								 	  parentPositionId,						 	  
-								 	  datbaseAction,
-								 	  syncTime);
+				
+				IF (datbaseAction = 'Update') THEN
+					UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+					SET recordToDate = syncTime
+					WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+				END IF;
+	
+				INSERT INTO Database.dbo.{TBL_EMPLOYMENT}(userId,
+												   		  personIdExternal,
+												   		  initials,
+												   		  firstName,
+									  					  lastName,
+												   		  companyCode,
+												   		  locationId,
+												   		  orgUnitId,
+												   		  department,
+												   		  division,
+												   		  businessUnit,
+												   		  orgUnitLevel1,
+												   		  orgUnitLevel2,
+												   		  orgUnitLevel3,
+												   		  orgUnitLevel4,
+												   		  orgUnitLevel5,
+												   		  orgUnitLevel6,
+												   		  positionId,
+												   		  positionName,
+												   		  costCenterId,
+												   		  employeeClass,
+												   		  employeeSubClass,
+												   		  employmentType,
+												   		  employmentStatus,
+												   		  standardHours,
+												   		  workingDaysPerWeek,
+												   		  fullTimeEquivalent,
+												   		  seniorityDate,
+												   		  originalStartDate,
+												   		  recruitDate,
+												   		  positionEntryDate,
+												   		  lastDateWorked,
+												   		  dateOfContractTermination,
+												   		  event,
+												   		  eventReason,
+												   		  eventDate,
+												   		  isManager,
+												   		  businessEmail,
+												   		  businessMobileCountryCode,
+												   		  businessMobilePhoneNumber,
+												   		  businessLandlineCountryCode,
+												   		  businessLandlinePhoneNumber,
+												   		  buildingNumber,
+												   		  roomNumber,
+												   		  managerUserId,
+												   		  contingentWorkerAdminPositionId,
+												   		  parentPositionId,								   		  
+												   		  recordFromDate,
+												   		  recordToDate,
+												   		  lastSyncDate)
+							VALUES (userId,				
+									personIdExternal,
+									initials,
+									firstName,
+									lastName,
+									companyCode,
+									locationId,
+									orgUnitId,
+									department,
+									division,
+									businessUnit,
+									orgUnitLevel1,
+									orgUnitLevel2,
+									orgUnitLevel3,
+									orgUnitLevel4,
+									orgUnitLevel5,
+									orgUnitLevel6,
+									positionId,
+									positionName,
+									costCenterId,
+									employeeClass,
+									employeeSubClass,
+									employmentType,
+									employmentStatus,
+									standardHours,
+									workingDaysPerWeek,
+									fullTimeEquivalent,
+									seniorityDate,
+									originalStartDate,
+						   		    recruitDate,
+						   		    positionEntryDate,
+									lastDateWorked,
+									dateOfContractTerm,
+									TRIM(event),
+									TRIM(eventReason),
+									eventDate,
+									isManager,
+									businessEmail,
+									businessMobCtryCode,
+									businessMobPhoneNbr,
+									businessLandCtryCode,
+									businessLandPhoneNbr,
+									buildingNumber,
+									roomNumber,
+									managerUserId,
+									contWrkAdmPositionId,	
+									parentPositionId,							
+									syncTime,				--recordFromDate
+									NULL,					--recordToDate
+									syncTime);				--lastSyncDate	
+									
+						
 			END IF;
 		END IF; 				          	   		         	        
 		
@@ -987,7 +988,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				T.employmentStatus,
 				T.isManager,
 				T.seniorityDate,
+				T.originalStartDate,
 				T.recruitDate,
+				T.positionEntryDate,
 				T.standardHours,
 				T.workingDaysPerWeek,
 				T.fullTimeEquivalent,
@@ -1011,157 +1014,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				T.recordTodate IS NULL;					
 	END;
 	
-	CREATE PROCEDURE UpsertEmployment(IN userId CHAR,
-								  	  IN personIdExternal CHAR,
-									  IN initials CHAR,
-									  IN firstName CHAR,
-								  	  IN lastName CHAR,
-									  IN companyCode CHAR,
-									  IN locationId CHAR,
-									  IN orgUnitId CHAR,
-									  IN department CHAR,
-									  IN division CHAR,
-									  IN businessUnit CHAR,
-									  IN orgUnitLevel1 CHAR,
-									  IN orgUnitLevel2 CHAR,
-									  IN orgUnitLevel3 CHAR,
-									  IN orgUnitLevel4 CHAR,
-									  IN orgUnitLevel5 CHAR,
-									  IN orgUnitLevel6 CHAR,
-									  IN positionId CHAR,
-									  IN positionName CHAR,
-									  IN costCenterId CHAR,
-									  IN employeeClass CHAR,
-									  IN employeeSubClass CHAR,	
-									  IN employmentType CHAR,
-									  IN employmentStatus CHAR,
-									  IN standardHours FLOAT,
-									  IN workingDaysPerWeek FLOAT,
-									  IN fullTimeEquivalent FLOAT,
-									  IN seniorityDate TIMESTAMP,
-									  IN recruitDate TIMESTAMP,
-									  IN lastDateWorked TIMESTAMP,
-									  IN dateOfContractTerm TIMESTAMP,
-									  IN event CHAR,
-									  IN eventReason CHAR,
-									  IN eventDate TIMESTAMP,
-									  IN isManager BOOLEAN,
-									  IN businessEmail CHAR,
-									  IN businessMobCtryCode CHAR,
-									  IN businessMobPhoneNbr CHAR,
-									  IN businessLandCtryCode CHAR,
-									  IN businessLandPhoneNbr CHAR,
-									  IN buildingNumber CHAR,
-									  IN roomNumber CHAR,
-									  IN managerUserId CHAR,								  			  
-									  IN contingentWorkerAdminPositionId CHAR,								  			  
-									  IN parentPositionId CHAR,								  			  
-								  	  IN datbaseAction CHAR,
-								  	  IN syncTime TIMESTAMP) BEGIN
+
 	
+		
 	
-		IF (datbaseAction = 'Update') THEN
-			UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
-			SET recordToDate = syncTime
-			WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
-		END IF;
-	
-		INSERT INTO Database.dbo.{TBL_EMPLOYMENT}(userId,
-										   		  personIdExternal,
-										   		  initials,
-										   		  firstName,
-							  					  lastName,
-										   		  companyCode,
-										   		  locationId,
-										   		  orgUnitId,
-										   		  department,
-										   		  division,
-										   		  businessUnit,
-										   		  orgUnitLevel1,
-										   		  orgUnitLevel2,
-										   		  orgUnitLevel3,
-										   		  orgUnitLevel4,
-										   		  orgUnitLevel5,
-										   		  orgUnitLevel6,
-										   		  positionId,
-										   		  positionName,
-										   		  costCenterId,
-										   		  employeeClass,
-										   		  employeeSubClass,
-										   		  employmentType,
-										   		  employmentStatus,
-										   		  standardHours,
-										   		  workingDaysPerWeek,
-										   		  fullTimeEquivalent,
-										   		  seniorityDate,
-										   		  recruitDate,
-										   		  lastDateWorked,
-										   		  dateOfContractTermination,
-										   		  event,
-										   		  eventReason,
-										   		  eventDate,
-										   		  isManager,
-										   		  businessEmail,
-										   		  businessMobileCountryCode,
-										   		  businessMobilePhoneNumber,
-										   		  businessLandlineCountryCode,
-										   		  businessLandlinePhoneNumber,
-										   		  buildingNumber,
-										   		  roomNumber,
-										   		  managerUserId,
-										   		  contingentWorkerAdminPositionId,
-										   		  parentPositionId,								   		  
-										   		  recordFromDate,
-										   		  recordToDate,
-										   		  lastSyncDate)
-		VALUES (userId,				
-				personIdExternal,
-				initials,
-				firstName,
-				lastName,
-				companyCode,
-				locationId,
-				orgUnitId,
-				department,
-				division,
-				businessUnit,
-				orgUnitLevel1,
-				orgUnitLevel2,
-				orgUnitLevel3,
-				orgUnitLevel4,
-				orgUnitLevel5,
-				orgUnitLevel6,
-				positionId,
-				positionName,
-				costCenterId,
-				employeeClass,
-				employeeSubClass,
-				employmentType,
-				employmentStatus,
-				standardHours,
-				workingDaysPerWeek,
-				fullTimeEquivalent,
-				seniorityDate,
-	   		    recruitDate,
-				lastDateWorked,
-				dateOfContractTerm,
-				TRIM(event),
-				TRIM(eventReason),
-				eventDate,
-				isManager,
-				businessEmail,
-				businessMobCtryCode,
-				businessMobPhoneNbr,
-				businessLandCtryCode,
-				businessLandPhoneNbr,
-				buildingNumber,
-				roomNumber,
-				managerUserId,
-				contingentWorkerAdminPositionId,	
-				parentPositionId,							
-				syncTime,				--recordFromDate
-				NULL,					--recordToDate
-				syncTime);				--lastSyncDate	
-	END;
 END MODULE;								  	  				
 
