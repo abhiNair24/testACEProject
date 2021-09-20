@@ -2,9 +2,6 @@ BROKER SCHEMA INT0080.PROCESS.COUNTRY
 -- $MQSI_VERSION=$Id$MQSI$
 -- $MQSI ESQL=$URL$MQSI$
 
--- Working tables
-DECLARE TBL_COUNT CONSTANT CHARACTER 'Country';
-
 
 CREATE COMPUTE MODULE ProcessCountry
 	CREATE FUNCTION Main() RETURNS BOOLEAN
@@ -82,7 +79,7 @@ CREATE COMPUTE MODULE ProcessCountry
 							   currency,
 							   status);
 		ELSE -- Update existing record with a lastSyncDate
-			UPDATE Database.dbo.{TBL_COUNT} AS T 
+			UPDATE Database.dbo.Country AS T 
 			SET lastSyncDate = CURRENT_TIMESTAMP
 			WHERE T.countryCode = countryCode;
 		END IF;																
@@ -95,7 +92,7 @@ CREATE COMPUTE MODULE ProcessCountry
 				T.twoCharCountryCode,
 				T.currency,
 				T.status
-		FROM 	Database.dbo.{TBL_COUNT} AS T 
+		FROM 	Database.dbo.Country AS T 
 		WHERE 	T.countryCode = countryCode;					
 	END;
 
@@ -105,7 +102,7 @@ CREATE COMPUTE MODULE ProcessCountry
 								   IN currency CHAR,
 								   IN status CHAR) BEGIN
 
-		INSERT INTO Database.dbo.{TBL_COUNT}(countryCode,
+		INSERT INTO Database.dbo.Country(countryCode,
 											 name,
 											 twoCharCountryCode,
 											 currency,
@@ -127,7 +124,7 @@ CREATE COMPUTE MODULE ProcessCountry
 								   IN currency CHAR,
 								   IN status CHAR) BEGIN
 
-		UPDATE Database.dbo.{TBL_COUNT} AS T
+		UPDATE Database.dbo.Country AS T
 		SET countryCode 		= countryCode, 
 			name 				= name, 
 			twoCharCountryCode 	= twoCharCountryCode,

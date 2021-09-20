@@ -4,6 +4,7 @@
 	<comment></comment>
 	<projects>
 		<project>ICC_FRAMEWORK</project>
+		<project>INT0080_HRDB_DATA_DP</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

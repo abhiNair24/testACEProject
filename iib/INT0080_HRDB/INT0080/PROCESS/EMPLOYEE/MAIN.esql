@@ -477,7 +477,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		END IF;		
 		
 		IF (datbaseAction = 'Insert') THEN
-			INSERT INTO Database.dbo.{TBL_PERSON}(
+			INSERT INTO Database.dbo.EmpPerson(
 				  personIdExternal,
 				  initials,
 				  salutation,

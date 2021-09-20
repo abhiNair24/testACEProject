@@ -189,7 +189,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 							   headOfUnitUserId,
 						   	   status);
 		ELSE -- Update existing record with a lastSyncDate
-			UPDATE Database.dbo.{TBL_ORG} AS T 
+			UPDATE Database.dbo.OrgUnit AS T 
 			SET lastSyncDate = CURRENT_TIMESTAMP
 			WHERE T.orgUnitId = orgUnitId;
 		END IF;
@@ -204,7 +204,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 				T.costCenterId,
 				T.headOfUnitUserId,
 				T.status
-		FROM 	Database.dbo.{TBL_ORG} AS T 
+		FROM 	Database.dbo.OrgUnit AS T 
 		WHERE 	T.orgUnitId = orgUnitId;					
 	END;
 
@@ -216,7 +216,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 							   	   IN headOfUnitUserId CHAR,								  
 								   IN status CHAR) BEGIN
 
-		INSERT INTO Database.dbo.{TBL_ORG}(orgUnitId,
+		INSERT INTO Database.dbo.OrgUnit(orgUnitId,
 										   name,
 										   orgUnitType,
 										   orgUnitParent,
@@ -244,7 +244,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 							   	   IN headOfUnitUserId CHAR,								  
 								   IN status CHAR) BEGIN
 
-		UPDATE Database.dbo.{TBL_ORG} AS T
+		UPDATE Database.dbo.OrgUnit AS T
 		SET name 				= name, 
 			orgUnitType			= orgUnitType,
 			orgUnitParent		= orgUnitParent, 

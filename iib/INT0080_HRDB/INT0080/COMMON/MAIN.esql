@@ -2,10 +2,6 @@ BROKER SCHEMA INT0080.COMMON
 -- $MQSI_VERSION=$Id$MQSI$
 -- $MQSI ESQL=$URL$MQSI$
 
--- Working tables
-DECLARE TBL_SYNCH_LOG CONSTANT CHARACTER 'SynchODdataLog';
-
-
 CREATE PROCEDURE GetConnectionInfo(IN refEnv REFERENCE) 
 BEGIN
 			 		
@@ -52,7 +48,7 @@ CREATE PROCEDURE InsertSynchLog(IN vType CHAR,
 	END IF;
 
 			
-	INSERT INTO Database.dbo.{TBL_SYNCH_LOG}(SF_Synch_Time,
+	INSERT INTO Database.dbo.SynchODdataLog(SF_Synch_Time,
 									   	     Type,
 									   	     Status,
 									   	     SF_Root_Object,

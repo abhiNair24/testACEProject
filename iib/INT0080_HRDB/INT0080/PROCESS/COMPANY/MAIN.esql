@@ -2,9 +2,6 @@ BROKER SCHEMA INT0080.PROCESS.COMPANY
 -- $MQSI_VERSION=$Id$MQSI$
 -- $MQSI ESQL=$URL$MQSI$
 
--- Working tables
-DECLARE TBL_COMP CONSTANT CHARACTER 'Company';
-
 
 CREATE COMPUTE MODULE ProcessCompany
 	CREATE FUNCTION Main() RETURNS BOOLEAN
@@ -82,7 +79,7 @@ CREATE COMPUTE MODULE ProcessCompany
 							   defaultLocationId,
 							   status);
 		ELSE -- Update existing record with a lastSyncDate
-			UPDATE Database.dbo.{TBL_COMP} AS T 
+			UPDATE Database.dbo.Company AS T 
 			SET lastSyncDate = CURRENT_TIMESTAMP
 			WHERE T.companyCode = companyCode;
 		END IF;																
@@ -95,7 +92,7 @@ CREATE COMPUTE MODULE ProcessCompany
 				T.country,
 				T.defaultLocationId,
 				T.status
-		FROM 	Database.dbo.{TBL_COMP} AS T 
+		FROM 	Database.dbo.Company AS T 
 		WHERE 	T.companyCode = companyCode;					
 	END;
 
@@ -105,7 +102,7 @@ CREATE COMPUTE MODULE ProcessCompany
 								   IN defaultLocationId CHAR,
 								   IN status CHAR) BEGIN
 
-		INSERT INTO Database.dbo.{TBL_COMP}(companyCode,
+		INSERT INTO Database.dbo.Company(companyCode,
 											name,
 											country,
 											defaultLocationId,
@@ -127,7 +124,7 @@ CREATE COMPUTE MODULE ProcessCompany
 								   IN defaultLocationId CHAR,
 								   IN status CHAR) BEGIN
 
-		UPDATE Database.dbo.{TBL_COMP} AS T
+		UPDATE Database.dbo.Company AS T
 		SET companyCode 		= companyCode, 
 			name 				= name, 
 			country 			= country,
