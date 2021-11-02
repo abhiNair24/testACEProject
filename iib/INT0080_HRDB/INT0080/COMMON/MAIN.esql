@@ -77,7 +77,11 @@ CREATE COMPUTE MODULE CheckIfMoreToGet
 			SET Environment.SF.Meta.Next = inRef.Data.d.__next;
 
 		ELSE
-			SET Environment.SF.Meta.hasMore = false;					
+			SET Environment.SF.Meta.hasMore = false;
+
+			-- Let processor flow know this is the last msg for this replicatoin (must swap staging and 'prod' table). 
+			SET OutputRoot.MQRFH2.usr.lastRecord = true;
+								
 		END IF;
 		
 		SET Environment.SF.Meta.firstRun 	= false;
