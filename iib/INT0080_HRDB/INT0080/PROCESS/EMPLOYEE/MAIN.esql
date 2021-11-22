@@ -531,6 +531,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					privPhoneNbr,									
 					syncTime,	-- recordLastUpdated
 					syncTime);	-- lastSyncDate	
+			
+			COMMIT;
+			
 		ELSEIF (datbaseAction = 'Update') THEN
 			
 			UPDATE Database.dbo.{TBL_PERSON} AS T
@@ -555,6 +558,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					recordLastUpdated 		= syncTime,
 					lastSyncDate 			= syncTime
 				WHERE T.personIdExternal = personIdExternal;
+				
+			COMMIT;
+				
 		
 		ELSE -- Update lastSyncDate even if any other update should be ignored
 		
@@ -565,6 +571,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				UPDATE Database.dbo.{TBL_PERSON} AS T 
 				SET lastSyncDate = syncTime
 				WHERE T.personIdExternal = personIdExternal;
+				
+				COMMIT; -- Avoid long running locks
+				
 			END IF;
 			
 		END IF;
@@ -843,6 +852,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
 				SET lastSyncDate = syncTime
 				WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+				
+				COMMIT; -- Avoid long running locks
+				
 			END IF;
 			
 			-- Insert new Employment information
@@ -852,6 +864,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
 					SET recordToDate = syncTime
 					WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+					
+					COMMIT; -- Avoid long running locks
 				END IF;
 	
 				INSERT INTO Database.dbo.{TBL_EMPLOYMENT}(userId,
@@ -954,8 +968,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 									syncTime,				--recordFromDate
 									NULL,					--recordToDate
 									syncTime);				--lastSyncDate	
-									
-						
+
+				COMMIT; -- Avoid long running locks
 			END IF;
 		END IF; 				          	   		         	        
 		

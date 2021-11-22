@@ -36,6 +36,8 @@ CREATE COMPUTE MODULE GetPerPerson
 		-- Call stored procedure to update Staging table (left blank to avoid risk of use) with fresh data from EmpEmployment
 		SET RC = StageEmpEmplRefreshSP();
 		
+		COMMIT; -- Avoid long running locks; Enfore new commit scope after DDL and table locks
+		
 		-- Get URL
 		SET vHost = Environment.Conn.Value.URL; 	
 		
