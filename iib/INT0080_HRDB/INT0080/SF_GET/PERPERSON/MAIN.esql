@@ -4,13 +4,7 @@ BROKER SCHEMA INT0080.SF_GET.PERPERSON
 
 -- Working tables
 DECLARE TBL_SYNCH_LOG CONSTANT CHARACTER 'SynchODdataLog';
-
--- Define procedure for database stored procedure; will truncate staging table and update with fresh EmpEmployment database
-CREATE PROCEDURE StageEmpEmplRefreshSP () 
-	RETURNS INTEGER
-	LANGUAGE DATABASE
-	EXTERNAL NAME "dbo.StageEmpEmplRefresh";
-				
+		
 CREATE COMPUTE MODULE GetPerPerson
 
 	CREATE FUNCTION Main() RETURNS BOOLEAN
@@ -20,7 +14,6 @@ CREATE COMPUTE MODULE GetPerPerson
 		DECLARE vHost 		CHAR;
 		DECLARE personIdExternalFilter CHAR;
 		DECLARE trigList	ROW;
-		DECLARE RC			INT; 
 		
 		-- Extract source trigger list
 		SET trigList.list.parm[] = EVAL('LIST{' || InputRoot.XMLNSC.TriggerMsg.TriggerId || '}');
@@ -31,11 +24,7 @@ CREATE COMPUTE MODULE GetPerPerson
 		-- Clean up synch table
 		SET sqlc = 'DELETE FROM ' || TBL_SYNCH_LOG || ' WHERE TYPE = ''Employee''';	
 		PASSTHRU(sqlc);
-		PASSTHRU('COMMIT;');		
-		
-		-- Call stored procedure to update Staging table (left blank to avoid risk of use) with fresh data from EmpEmployment
-		SET RC = StageEmpEmplRefreshSP();
-		
+
 		COMMIT; -- Avoid long running locks; Enfore new commit scope after DDL and table locks
 		
 		-- Get URL
@@ -211,7 +200,6 @@ CREATE COMPUTE MODULE GetPerPerson
 		RETURN vHost || vObject || '?' || vFilter || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
 		
 		--RETURN vHost || vObject || '?' || '$filter=personIdExternal eq ''882609''&' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
-			
 	END;
  
 	

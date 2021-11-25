@@ -4,32 +4,17 @@ BROKER SCHEMA INT0080.PROCESS.EMPLOYEE
 
 -- Working tables
 DECLARE TBL_PERSON		CONSTANT CHARACTER 'EmpPerson';
-DECLARE TBL_EMPLOYMENT	CONSTANT CHARACTER 'StageEmpEmpl'; -- Work on staging table only (avoid locking EmpEmplyment for read during processing)  
-
--- Define procedure for database stored procedure; will swap staging table and EmpEmployment; then truncate staging
-CREATE PROCEDURE StageEmpEmplSwapSP () 
-	RETURNS INTEGER
-	LANGUAGE DATABASE
-	EXTERNAL NAME "dbo.StageEmpEmplSwap";
-
+DECLARE TBL_EMPLOYMENT	CONSTANT CHARACTER 'EmpEmployment'; -- Work on staging table only (avoid locking EmpEmplyment for read during processing)  
 
 CREATE COMPUTE MODULE ProcessEmployee
 	CREATE FUNCTION Main() RETURNS BOOLEAN
 	BEGIN
 		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
 		DECLARE syncTime TIMESTAMP CAST(InputRoot.MQRFH2.usr.syncTime AS TIMESTAMP);
-		DECLARE RC INT;
-		
 		
 		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
 			CALL MapPerPerson(inRef, syncTime);
 			SET OutputRoot.XMLNSC.Employee.Info = 'Employees sucessfully processed.';	
-			
-			-- If this is the last msgs in current sync then call stored procedure to swap staging table and prod table
-			IF (InputRoot.MQRFH2.usr.lastRecord = true) THEN
-				SET RC=StageEmpEmplSwapSP();
-			END IF; 
-					
 		ELSE
 			SET OutputRoot.XMLNSC.Employee.Info = 'No data found in input message.';			
 			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';

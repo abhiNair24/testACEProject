@@ -55,7 +55,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET status 				= TRIM(LEFT(inRef.status, 2));
 			
 			IF (inRef.parent IS NULL) THEN
-				SET orgUnitParent = TRIM(LEFT(COALESCE(inRef.cust_toDivision.results.Item.externalCode, NULL), 32));
+				SET orgUnitParent = TRIM(LEFT(COALESCE(inRef.cust_toDivision.externalCode, NULL), 32));
 			ELSE
 				SET orgUnitParent = TRIM(LEFT(inRef.parent, 32));
 			END IF;			
@@ -94,7 +94,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET costCenterId		= TRIM(LEFT(inRef.cust_costCenter, 90));
 			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
 			SET status 				= TRIM(LEFT(inRef.status, 2));
-			SET orgUnitParent 		= TRIM(LEFT(COALESCE(inRef.cust_toBusinessUnit.results.Item.externalCode, NULL), 32));		
+			SET orgUnitParent 		= TRIM(LEFT(COALESCE(inRef.cust_toBusinessUnit.externalCode, NULL), 32));		
 
 			-- Process table OrgUnit	
 			CALL ProcessOrgUnit(orgUnitId, 
