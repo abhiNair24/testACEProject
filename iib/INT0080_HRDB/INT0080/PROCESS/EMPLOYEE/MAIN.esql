@@ -677,7 +677,6 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET isManager				= GetIsManager(inRef.employmentNav.results.Item[vEmpAr].userNav.teamMembersSize);
 			SET recruitDate				= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate);
 			SET originalStartDate		= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].originalStartDate);
-			SET positionEntryDate		= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionEntryDate);
 
 			-- Try use workOrder effectiveStartDate if positionEntryDate is not set (consultants and other non-employees). 
 --			SET positionEntryDate		= COALESCE (INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionEntryDate),
@@ -688,22 +687,6 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET buildingNumber			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom01, 255));
 			SET roomNumber				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].userNav.custom02, 255));
 			SET managerUserId			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.managerUserNav.userId, 100));	
-			SET positionId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
-			SET positionName 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
-			SET orgUnitLevel1			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel1, 128));
-			SET orgUnitLevel2			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel2, 128));
-			SET orgUnitLevel3			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel3, 128));
-			SET orgUnitLevel4			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel4, 128));
-			SET orgUnitLevel5			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel5, 128));
-			SET orgUnitLevel6			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel6, 128));
-			SET parentPositionId		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.parentPosition.code, 128));
-	
-	
-	
-			-- Get contingentWorkerAdminPositionId 
-			SET contWrkAdmPositionId = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.relatedPosition)
-				          	   		 		   	 	  FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.positionMatrixRelationship.results.Item[] AS r
-				          	   		   		   	 	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
 				
 			-- Get employeeClass
 			SET employeeClass = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
@@ -721,11 +704,75 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET employmentType = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
 	   		  	  	        	  		  	  			 FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employmentTypeNav.picklistLabels.results.Item[] AS r
 		      	  	        	  		  	  			 WHERE r.locale = 'en_US'), NULL), 255));	
+
 	      	 
 			-- Get employmentStatus
 			SET employmentStatus = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
 	   		  	  	        	  		  	  		  	   FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.picklistLabels.results.Item[] AS r
 		      	  	        	  		  	  		  	   WHERE r.locale = 'en_US'), NULL), 255));		
+
+
+
+
+			-- For some terminated employees the position related info disappears (position probably reused).
+			If (employmentStatus = 'Terminated' ) THEN
+
+				-- Don't use oData from PP/SF but use HRDB itself to populate these fields by looking up the best suitable old record for this employee.  
+				--   A dummy field "recordpriority" is created in the SELECT to prioritize: 
+				   -- (3) Non-terminated (Active) records which have a positionId
+				   -- (2) If above not found: records that have positionId
+				   -- (1) If above not found: rest of the records (typically employees terminated at initial load)
+				-- Using "ORDER BY xx DESC" to find the newest record ( top-1) with the heightest priority.     
+				
+				SET Environment.Variables.lastOrgUnitLevels[] = 
+					PASSTHRU('SELECT TOP(1) TE.positionId, TE.positionName, TE.positionEntryDate,
+							TE.orgUnitLevel1, TE.orgUnitLevel2, TE.orgUnitLevel3, TE.orgUnitLevel4, TE.orgUnitLevel5, TE.orgUnitLevel6,
+							 TE.parentPositionId, TE.contingentWorkerAdminPositionId, 
+							 CASE 
+							 	WHEN TE.employmentStatus != ''Terminated'' and TE.positionId is not null THEN 3
+							 	WHEN TE.positionId is not null THEN 2
+							 	ELSE 1
+							 END as recordpriority
+						FROM EmpEmployment AS TE
+						WHERE TE.personIdExternal = ?   
+					 	ORDER BY recordpriority DESC, recordFromDate DESC ' TO Database.HRDB VALUES (personIdExternal) ); 				
+
+				SET positionId 				= Environment.Variables.lastOrgUnitLevels.positionId;
+				SET positionName 			= Environment.Variables.lastOrgUnitLevels.positionName;
+				SET positionEntryDate		= Environment.Variables.lastOrgUnitLevels.positionEntryDate;
+
+				SET orgUnitLevel1			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel1;
+				SET orgUnitLevel2			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel2;
+				SET orgUnitLevel3			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel3;
+				SET orgUnitLevel4			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel4;
+				SET orgUnitLevel5			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel5;
+				SET orgUnitLevel6			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel6;
+
+				SET parentPositionId		= Environment.Variables.lastOrgUnitLevels.parentPositionId;
+				SET contWrkAdmPositionId 	= Environment.Variables.lastOrgUnitLevels.contingentWorkerAdminPositionId;
+			
+			ELSE 		
+				-- Proceed like "normal" getting values from oData query result	
+
+				SET positionId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
+				SET positionName 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
+				SET positionEntryDate		= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionEntryDate);
+
+				SET orgUnitLevel1			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel1, 128));
+				SET orgUnitLevel2			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel2, 128));
+				SET orgUnitLevel3			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel3, 128));
+				SET orgUnitLevel4			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel4, 128));
+				SET orgUnitLevel5			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel5, 128));
+				SET orgUnitLevel6			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel6, 128));
+				
+				SET parentPositionId		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.parentPosition.code, 128));
+	
+				-- Get contingentWorkerAdminPositionId 
+				SET contWrkAdmPositionId = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.relatedPosition)
+					       	   		 		   	 	  FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.positionMatrixRelationship.results.Item[] AS r
+				          	   		   		   	 	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
+				
+			END IF; 
 
 			-- Get seniorityDate
 			CALL GetSeniorityDate(globAssign, inRef, vEmpAr, seniorityDate);	
@@ -809,19 +856,15 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			ELSEIF (COALESCE(buildingNumber, '') <> COALESCE(Environment.tmp.Employment.buildingNumber, '') ) THEN SET firstMismatch = 'buildingNumber';
 			ELSEIF (COALESCE(roomNumber, '') <> COALESCE(Environment.tmp.Employment.roomNumber, '') ) THEN SET firstMismatch = 'roomNumber';
 			ELSEIF (COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.Employment.managerUserId, '') ) THEN SET firstMismatch = 'managerUserId';
-			ELSEIF ( ( (dateOfContractTerm IS NULL OR COALESCE(dateOfContractTerm, '') >= todayDate) AND 
-					 ( 	COALESCE(positionName, '') <> COALESCE(Environment.tmp.Employment.positionName, '') OR
-						COALESCE(orgUnitLevel1, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel1, '') OR
-						COALESCE(orgUnitLevel2, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel2, '') OR
-						COALESCE(orgUnitLevel3, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel3, '') OR
-						COALESCE(orgUnitLevel4, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel4, '') OR
-						COALESCE(orgUnitLevel5, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel5, '') OR
-						COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel6, '') OR
-						COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Employment.contingentWorkerAdminPositionId, '') OR
-						COALESCE(parentPositionId, '') <> COALESCE(Environment.tmp.Employment.parentPositionId, '')
-				  	) 
-				)) THEN 
-				SET firstMismatch = 'finalBlock';
+			ELSEIF (COALESCE(positionName, '') <> COALESCE(Environment.tmp.Employment.positionName, '')) THEN SET firstMismatch = 'positionName';
+			ELSEIF (COALESCE(orgUnitLevel1, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel1, '') ) THEN SET firstMismatch = 'orgUnitLevel1';
+			ELSEIF (COALESCE(orgUnitLevel2, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel2, '') ) THEN SET firstMismatch = 'orgUnitLevel2';
+			ELSEIF (COALESCE(orgUnitLevel3, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel3, '') ) THEN SET firstMismatch = 'orgUnitLevel3';
+			ELSEIF (COALESCE(orgUnitLevel4, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel4, '') ) THEN SET firstMismatch = 'orgUnitLevel4';
+			ELSEIF (COALESCE(orgUnitLevel5, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel5, '') ) THEN SET firstMismatch = 'orgUnitLevel5';
+			ELSEIF (COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel6, '') ) THEN SET firstMismatch = 'orgUnitLevel6';
+			ELSEIF (COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Employment.contingentWorkerAdminPositionId, '') ) THEN SET firstMismatch = 'contingentWorkerAdminPositionId';
+			ELSEIF (COALESCE(parentPositionId, '') <> COALESCE(Environment.tmp.Employment.parentPositionId, '') ) THEN SET firstMismatch = 'parentPositionId';
 			END IF;
 			 
 			/* Check if insert new employee information or update current employee information or 
