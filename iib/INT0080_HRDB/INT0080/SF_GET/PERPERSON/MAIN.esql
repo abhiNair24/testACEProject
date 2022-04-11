@@ -28,7 +28,7 @@ CREATE COMPUTE MODULE GetPerPerson
 		COMMIT; -- Avoid long running locks; Enfore new commit scope after DDL and table locks
 		
 		-- Get URL
-		SET vHost = Environment.Conn.Value.URL; 	
+		SET vHost = Environment.Conn.URL; 
 		
 		-- Set Environment start values
 		SET Environment.SF.Meta.hasMore 	= true;
@@ -37,12 +37,9 @@ CREATE COMPUTE MODULE GetPerPerson
 						
  		WHILE (Environment.SF.Meta.hasMore = true AND countReq <= 100) DO
 		
-			SET OutputRoot.Properties.CodedCharSetId 			= 1208;						
-			SET OutputRoot.Properties.IdentitySourceType 		= 'usernameAndPassword';
-			SET OutputRoot.Properties.IdentitySourceToken 		= Environment.Conn.Value.UNAME;
-			SET OutputRoot.Properties.IdentitySourcePassword	= Environment.Conn.Value.PW;
-			SET OutputRoot.Properties.IdentitySourceIssuedBy 	= Environment.Conn.Value.ISSUED_BY;			
-			
+			SET OutputRoot.Properties.CodedCharSetId 			= 1208;	
+			SET OutputRoot.HTTPRequestHeader."Authorization" = Environment.Conn.AuthHeader;				
+		
 			-- If first run, then run query, else run queryMore
 			IF Environment.SF.Meta.firstRun = true THEN
 				SET Environment.SF.Meta.RequestURL = GetQPerPerson(vHost, personIdExternalFilter);					
@@ -205,10 +202,3 @@ CREATE COMPUTE MODULE GetPerPerson
 	
 END MODULE;
 
-CREATE FILTER MODULE GetConn
-	CREATE FUNCTION Main() RETURNS BOOLEAN
-	BEGIN
-		CALL INT0080.COMMON.GetConnectionInfo(Environment);
-		RETURN TRUE;
-	END;
-END MODULE;

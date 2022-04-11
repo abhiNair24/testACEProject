@@ -1,0 +1,73 @@
+BROKER SCHEMA INT0080.COMMON
+
+
+CREATE COMPUTE MODULE GET_CONN_SF_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		SET Environment.Conn.Value[] = (SELECT T.BASEURL, T.CLIENT_ID, T.COMPANY_ID, T.SAML_ASSERTION FROM Database.INT0080_CONNECTION AS T);			 
+		
+		-- Throw error if information cannot be found				
+		IF NOT (EXISTS(Environment.Conn.Value[])) THEN
+			THROW USER EXCEPTION MESSAGE 2961 Values('Could not find any lookup value in table INT0080_CONNECTION!');			
+		END IF;
+		
+		
+		-- Step 1: Get oAuth token from SAML assertion
+		SET OutputRoot.Properties.CodedCharSetId = 1208;		
+		SET OutputRoot.HTTPRequestHeader."Content-Type" = 'application/x-www-form-urlencoded';	
+		SET OutputLocalEnvironment.Destination.HTTP.RequestURL 	= Environment.Conn.Value.BASEURL || '/oauth/token';
+		
+		-- Create x-www-form-urlencoded login string: new_token=true&client_id=XXXXXXXXXXXXXX&grant_type=bla bla bla... 
+		SET OutputRoot.BLOB.BLOB = CAST('client_id=' ||  Environment.Conn.Value.CLIENT_ID 
+									||  '&grant_type=urn:ietf:params:oauth:grant-type:saml2-bearer' 
+									||  '&company_id=' || Environment.Conn.Value.COMPANY_ID
+									||  '&assertion=' || Environment.Conn.Value.SAML_ASSERTION
+									AS BLOB CCSID 1208);
+		
+		PROPAGATE TO TERMINAL 'out' DELETE NONE; -- Not delete output buffer, we might need it again below
+		
+		-- If the provided token is valid for less than one hour (3600 sek) then request a new token which we assume is good. 
+		
+		IF (Environment.Conn.TokenExpiry < 3600 ) THEN
+			
+			-- Same payload but adding new_token=true			
+			SET OutputRoot.BLOB.BLOB = CAST('new_token=true' 
+									||  '&client_id=' ||  Environment.Conn.Value.CLIENT_ID 
+									||  '&grant_type=urn:ietf:params:oauth:grant-type:saml2-bearer' 
+									||  '&company_id=' || Environment.Conn.Value.COMPANY_ID
+									||  '&assertion=' || Environment.Conn.Value.SAML_ASSERTION
+									AS BLOB CCSID 1208);
+			
+			PROPAGATE TO TERMINAL 'out';
+			
+		END IF;  
+
+		-- Generally return the same message and headers from subflow as provided in. 
+		--   besides the new values stored in environment 			
+
+		CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		
+		SET Environment.Conn.URL  = Environment.Conn.Value.BASEURL || 'odata/v2/';
+		
+		PROPAGATE TO TERMINAL 'out1';
+			
+		RETURN FALSE; -- False: Don't want to propagate to out again... 
+	END;
+	
+
+	CREATE PROCEDURE CopyMessageHeaders() BEGIN
+		DECLARE I INTEGER 1;
+		DECLARE J INTEGER;
+		SET J = CARDINALITY(InputRoot.*[]);
+		WHILE I < J DO
+			SET OutputRoot.*[I] = InputRoot.*[I];
+			SET I = I + 1;
+		END WHILE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		SET OutputRoot = InputRoot;
+	END;
+END MODULE;
