@@ -5,6 +5,8 @@
     <translation xmi:type="utility:TranslatableString" key="GET_CONN_SF" bundleName="INT0080/COMMON/GET_CONN_SF" pluginId="INT0080_HRDB"/>
     <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj16/GET_CONN_SF.gif"/>
     <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj30/GET_CONN_SF.gif"/>
+    <shortDescription xmi:type="utility:ConstantString" string="$MQSI MsgFlow = $URL$:MQSI$"/>
+    <version xmi:type="utility:ConstantString" string="$Id$"/>
     <composition>
       <nodes xmi:type="eflow:FCMSource" xmi:id="InTerminal.Input" location="20,20">
         <translation xmi:type="utility:TranslatableString" key="InTerminal.Input" bundleName="INT0080/COMMON/GET_CONN_SF" pluginId="INT0080_HRDB"/>
