@@ -88,8 +88,8 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vSelect = vSelect || 'personalInfoNav/nationality,';		
 		SET vSelect = vSelect || 'personalInfoNav/salutationNav/externalCode,';
 		SET vSelect = vSelect || 'personalInfoNav/nativePreferredLangNav/externalCode,';
-		--SET vSelect = vSelect || 'nationalIdNav/nationalId,';
-		--SET vSelect = vSelect || 'nationalIdNav/cardType,';	
+		SET vSelect = vSelect || 'nationalIdNav/nationalId,';
+		SET vSelect = vSelect || 'nationalIdNav/cardType,';	
 		SET vSelect = vSelect || 'homeAddressNavDEFLT/country,';
 		SET vSelect = vSelect || 'homeAddressNavDEFLT/zipCode,';				
 		SET vSelect = vSelect || 'homeAddressNavDEFLT/address1,';
@@ -172,7 +172,7 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vExpand = vExpand || 'phoneNav/phoneTypeNav,';		
 		SET vExpand = vExpand || 'personalInfoNav/salutationNav,';
 		SET vExpand = vExpand || 'personalInfoNav/nativePreferredLangNav,';
-		--SET vExpand = vExpand || 'nationalIdNav,';
+		SET vExpand = vExpand || 'nationalIdNav,';
 		SET vExpand = vExpand || 'homeAddressNavDEFLT/stateNav,';		
 		SET vExpand = vExpand || 'employmentNav/empGlobalAssignmentNav,';
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/employeeClassNav/picklistLabels,';		

@@ -7,7 +7,7 @@
       <details xmi:id="_qpKxcDsiEeyC2Ozgbx2PJg" key="ConnectionKey" value="HRDB"/>
     </eAnnotations>
   </SQLSchema:Database>
-  <SQLSchema:Schema xmi:id="_-cS8ABenEeysNZON5-HWIg" name="dbo" tables="_-cS8ARenEeysNZON5-HWIg _-cTjEBenEeysNZON5-HWIg _-cVYQBenEeysNZON5-HWIg _-cV_UBenEeysNZON5-HWIg _-cV_cxenEeysNZON5-HWIg _-cXNcBenEeysNZON5-HWIg _-cXNgRenEeysNZON5-HWIg _-cXNkBenEeysNZON5-HWIg _-cX0gBenEeysNZON5-HWIg" database="_-Y8GABenEeysNZON5-HWIg"/>
+  <SQLSchema:Schema xmi:id="_-cS8ABenEeysNZON5-HWIg" name="dbo" tables="_-cS8ARenEeysNZON5-HWIg _-cTjEBenEeysNZON5-HWIg _-cVYQBenEeysNZON5-HWIg _-cV_UBenEeysNZON5-HWIg _-cV_cxenEeysNZON5-HWIg _-cXNcBenEeysNZON5-HWIg _-cXNgRenEeysNZON5-HWIg _-cXNkBenEeysNZON5-HWIg _-cX0gBenEeysNZON5-HWIg _vvL3cA51Ee2ZC-LNG9WBhQ" database="_-Y8GABenEeysNZON5-HWIg"/>
   <SQLTables:PersistentTable xmi:id="_-cS8ARenEeysNZON5-HWIg" name="EmpPerson" schema="_-cS8ABenEeysNZON5-HWIg">
     <extensions xsi:type="SQLServerModel:SQLServerPersistentTableExtension" xmi:id="_-cS8AhenEeysNZON5-HWIg"/>
     <columns xmi:id="_-cS8AxenEeysNZON5-HWIg" name="personIdExternal" nullable="false">
@@ -30,6 +30,9 @@
     </columns>
     <columns xmi:id="_-cS8DxenEeysNZON5-HWIg" name="dateOfBirth">
       <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cS8EBenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_lPCscECcEe2mruBuKoqbwQ" name="cprNumber">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_ot-RcECcEe2mruBuKoqbwQ" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="20"/>
     </columns>
     <columns xmi:id="_-cS8ERenEeysNZON5-HWIg" name="country">
       <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cS8EhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="256"/>
@@ -466,5 +469,163 @@
       <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cX0oxenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
     </columns>
     <constraints xsi:type="SQLConstraints:PrimaryKey" xmi:id="_-cX0pBenEeysNZON5-HWIg" name="PK_Position" members="_-cX0ghenEeysNZON5-HWIg"/>
+  </SQLTables:PersistentTable>
+  <SQLTables:PersistentTable xmi:id="_vvL3cA51Ee2ZC-LNG9WBhQ" name="EmpEmploymentFuture" schema="_-cS8ABenEeysNZON5-HWIg">
+    <extensions xsi:type="SQLServerModel:SQLServerPersistentTableExtension" xmi:id="_-cTjERenEeysNZON5-HWIg"/>
+    <columns xmi:id="_-cTjEhenEeysNZON5-HWIg" name="rowId" nullable="false">
+      <containedType xsi:type="SQLDataTypes:IntegerDataType" xmi:id="_-cTjExenEeysNZON5-HWIg" name="INT" primitiveType="INTEGER"/>
+      <identitySpecifier xmi:id="_-cTjFBenEeysNZON5-HWIg" startValue="1" increment="1"/>
+    </columns>
+    <columns xmi:id="_-cTjFRenEeysNZON5-HWIg" name="userId" nullable="false">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjFhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="100"/>
+    </columns>
+    <columns xmi:id="_-cTjFxenEeysNZON5-HWIg" name="personIdExternal" nullable="false">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjGBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="32"/>
+    </columns>
+    <columns xmi:id="_-cTjGRenEeysNZON5-HWIg" name="initials" nullable="false">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjGhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjGxenEeysNZON5-HWIg" name="firstName">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjHBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjHRenEeysNZON5-HWIg" name="lastName">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjHhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjHxenEeysNZON5-HWIg" name="positionId">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjIBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjIRenEeysNZON5-HWIg" name="positionName">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjIhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="255"/>
+    </columns>
+    <columns xmi:id="_-cTjIxenEeysNZON5-HWIg" name="companyCode">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjJBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="8"/>
+    </columns>
+    <columns xmi:id="_-cTjJRenEeysNZON5-HWIg" name="locationId">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjJhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjJxenEeysNZON5-HWIg" name="costCenterId">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjKBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="32"/>
+    </columns>
+    <columns xmi:id="_-cTjKRenEeysNZON5-HWIg" name="seniorityDate">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjKhenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjKxenEeysNZON5-HWIg" name="originalStartDate">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjLBenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjLRenEeysNZON5-HWIg" name="recruitDate">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjLhenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjLxenEeysNZON5-HWIg" name="positionEntryDate">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjMBenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjMRenEeysNZON5-HWIg" name="dateOfContractTermination">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjMhenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjMxenEeysNZON5-HWIg" name="lastDateWorked">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjNBenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjNRenEeysNZON5-HWIg" name="employeeClass">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjNhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="255"/>
+    </columns>
+    <columns xmi:id="_-cTjNxenEeysNZON5-HWIg" name="employeeSubClass">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjOBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="255"/>
+    </columns>
+    <columns xmi:id="_-cTjORenEeysNZON5-HWIg" name="employmentType">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjOhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="255"/>
+    </columns>
+    <columns xmi:id="_-cTjOxenEeysNZON5-HWIg" name="employmentStatus">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjPBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="255"/>
+    </columns>
+    <columns xmi:id="_-cTjPRenEeysNZON5-HWIg" name="isManager">
+      <containedType xsi:type="SQLDataTypes:IntegerDataType" xmi:id="_-cTjPhenEeysNZON5-HWIg" name="BIT" primitiveType="INTEGER"/>
+    </columns>
+    <columns xmi:id="_-cTjPxenEeysNZON5-HWIg" name="standardHours">
+      <containedType xsi:type="SQLDataTypes:ApproximateNumericDataType" xmi:id="_-cTjQBenEeysNZON5-HWIg" name="REAL" primitiveType="REAL"/>
+    </columns>
+    <columns xmi:id="_-cTjQRenEeysNZON5-HWIg" name="workingDaysPerWeek">
+      <containedType xsi:type="SQLDataTypes:ApproximateNumericDataType" xmi:id="_-cTjQhenEeysNZON5-HWIg" name="REAL" primitiveType="REAL"/>
+    </columns>
+    <columns xmi:id="_-cTjQxenEeysNZON5-HWIg" name="fullTimeEquivalent">
+      <containedType xsi:type="SQLDataTypes:ApproximateNumericDataType" xmi:id="_-cTjRBenEeysNZON5-HWIg" name="REAL" primitiveType="REAL"/>
+    </columns>
+    <columns xmi:id="_-cTjRRenEeysNZON5-HWIg" name="orgUnitId">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjRhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="32"/>
+    </columns>
+    <columns xmi:id="_-cTjRxenEeysNZON5-HWIg" name="businessUnit">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjSBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="32"/>
+    </columns>
+    <columns xmi:id="_-cTjSRenEeysNZON5-HWIg" name="division">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjShenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="32"/>
+    </columns>
+    <columns xmi:id="_-cTjSxenEeysNZON5-HWIg" name="department">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjTBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="32"/>
+    </columns>
+    <columns xmi:id="_-cTjTRenEeysNZON5-HWIg" name="orgUnitLevel1">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjThenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjTxenEeysNZON5-HWIg" name="orgUnitLevel2">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjUBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjURenEeysNZON5-HWIg" name="orgUnitLevel3">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjUhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjUxenEeysNZON5-HWIg" name="orgUnitLevel4">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjVBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjVRenEeysNZON5-HWIg" name="orgUnitLevel5">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjVhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjVxenEeysNZON5-HWIg" name="orgUnitLevel6">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjWBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjWRenEeysNZON5-HWIg" name="businessEmail">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjWhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="100"/>
+    </columns>
+    <columns xmi:id="_-cTjWxenEeysNZON5-HWIg" name="businessMobileCountryCode">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjXBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="32"/>
+    </columns>
+    <columns xmi:id="_-cTjXRenEeysNZON5-HWIg" name="businessMobilePhoneNumber">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjXhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="100"/>
+    </columns>
+    <columns xmi:id="_-cTjXxenEeysNZON5-HWIg" name="businessLandlineCountryCode">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjYBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="32"/>
+    </columns>
+    <columns xmi:id="_-cTjYRenEeysNZON5-HWIg" name="businessLandlinePhoneNumber">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjYhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="100"/>
+    </columns>
+    <columns xmi:id="_-cTjYxenEeysNZON5-HWIg" name="buildingNumber">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjZBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="255"/>
+    </columns>
+    <columns xmi:id="_-cTjZRenEeysNZON5-HWIg" name="roomNumber">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjZhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="255"/>
+    </columns>
+    <columns xmi:id="_-cTjZxenEeysNZON5-HWIg" name="managerUserId">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjaBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="100"/>
+    </columns>
+    <columns xmi:id="_-cTjaRenEeysNZON5-HWIg" name="contingentWorkerAdminPositionId">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjahenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjaxenEeysNZON5-HWIg" name="parentPositionId">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjbBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="128"/>
+    </columns>
+    <columns xmi:id="_-cTjbRenEeysNZON5-HWIg" name="event">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjbhenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="255"/>
+    </columns>
+    <columns xmi:id="_-cTjbxenEeysNZON5-HWIg" name="eventReason">
+      <containedType xsi:type="SQLDataTypes:CharacterStringDataType" xmi:id="_-cTjcBenEeysNZON5-HWIg" name="NVARCHAR" primitiveType="NATIONAL_CHARACTER_VARYING" length="100"/>
+    </columns>
+    <columns xmi:id="_-cTjcRenEeysNZON5-HWIg" name="eventDate">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjchenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjcxenEeysNZON5-HWIg" name="recordFromDate">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjdBenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjdRenEeysNZON5-HWIg" name="recordToDate">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjdhenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <columns xmi:id="_-cTjdxenEeysNZON5-HWIg" name="lastSyncDate">
+      <containedType xsi:type="SQLDataTypes:DateDataType" xmi:id="_-cTjeBenEeysNZON5-HWIg" name="DATETIME" primitiveType="DATE"/>
+    </columns>
+    <constraints xsi:type="SQLConstraints:PrimaryKey" xmi:id="_-cTjeRenEeysNZON5-HWIg" name="PK_EmpEmployment" members="_-cTjEhenEeysNZON5-HWIg"/>
   </SQLTables:PersistentTable>
 </xmi:XMI>

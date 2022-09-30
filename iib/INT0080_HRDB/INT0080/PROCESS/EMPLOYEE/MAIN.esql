@@ -400,6 +400,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		DECLARE nationality 		CHAR;
 		DECLARE nativePrefLang 		CHAR;			
 		DECLARE dateOfBirth 		TIMESTAMP;
+		DECLARE cprNumberEncoded    CHAR;
 		DECLARE country 			CHAR;
 		DECLARE state				CHAR;	
 		DECLARE city 				CHAR;	
@@ -422,6 +423,11 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		SET nationality				= TRIM(LEFT(inRef.personalInfoNav.results.Item.nationality, 128));
 		SET nativePrefLang			= TRIM(LEFT(inRef.personalInfoNav.results.Item.nativePreferredLangNav.externalCode, 256));
 		SET dateOfBirth 			= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].userNav.dateOfBirth);
+		
+		IF ( inRef.nationalIdNav.results.Item.cardType = 'CPR' ) THEN
+			SET cprNumberEncoded = BASE64ENCODE( inRef.nationalIdNav.results.Item.nationalId);
+		END IF; 
+		
 		SET country					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.country, 256));
 		SET state					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.stateNav.externalCode, 256));
 		SET city					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.city, 256));
@@ -448,8 +454,30 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 	
 					      	  				
 		-- Get current person in table Person 
-		CALL GetCurrentPerInPerson(personIdExternal);
-	
+		SET Environment.tmp.Person[] = 
+		SELECT  T.personIdExternal,
+				T.initials,
+				T.salutation,
+				T.gender,
+				T.nationality,
+				T.nativePreferredLanguage,
+				T.dateOfBirth,
+				T.cprNumber,
+				T.country,
+				T.zipCode,
+				T.address1,
+				T.address2,
+				T.address3,
+				T.address4,
+				T.city,
+				T.state,
+				T.personalEmail,
+				T.privatePhoneCountryCode,
+				T.privatePhoneNumber
+		FROM 	Database.dbo.{TBL_PERSON} AS T 
+		WHERE 	T.personIdExternal = personIdExternal;	
+		
+			
 		/* Check if insert new person information or update current person information or 
 		   just update lastSyncDate for a current person */
 		IF (CARDINALITY(Environment.tmp.Person[]) = 0) THEN
@@ -460,6 +488,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				COALESCE(nationality, '') <> COALESCE(Environment.tmp.Person.nationality, '') OR
 				COALESCE(nativePrefLang, '') <> COALESCE(Environment.tmp.Person.nativePreferredLanguage, '') OR
 				COALESCE(dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Person.dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+				COALESCE(cprNumberEncoded, '') <> COALESCE(Environment.tmp.Person.cprNumberEncoded, '') OR
 				COALESCE(country, '') <> COALESCE(Environment.tmp.Person.country, '') OR
 				COALESCE(state, '') <> COALESCE(Environment.tmp.Person.state, '') OR
 				COALESCE(city, '') <> COALESCE(Environment.tmp.Person.city, '') OR
@@ -483,6 +512,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				  nationality,
 				  nativePreferredLanguage,
 				  dateOfBirth,
+				  cprNumber,
 				  country,
 				  state,
 				  city,
@@ -502,7 +532,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					gender,					
 					nationality,		
 					nativePrefLang,				
-					dateOfBirth,								
+					dateOfBirth,
+					cprNumberEncoded,								
 					country,						
 					state,							
 					city,		
@@ -529,6 +560,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					nationality 			= nationality,
 					nativePreferredLanguage	= nativePrefLang,
 					dateOfBirth				= dateOfBirth,
+					cprNumber               = cprNumberEncoded,
 					country					= country,
 					state					= state,
 					city					= city,
@@ -548,10 +580,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				
 		
 		ELSE -- Update lastSyncDate even if any other update should be ignored
-		
-			-- Get current person in table Person
-			CALL GetCurrentPerInPerson(personIdExternal);
-		
+	
 			IF (CARDINALITY(Environment.tmp.Person[]) > 0) THEN
 				UPDATE Database.dbo.{TBL_PERSON} AS T 
 				SET lastSyncDate = syncTime
@@ -564,30 +593,6 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		END IF;
 
 	END;	
-
-	CREATE PROCEDURE GetCurrentPerInPerson(IN personIdExternal CHAR) BEGIN			
-		SET Environment.tmp.Person[] = 
-		SELECT  T.personIdExternal,
-				T.initials,
-				T.salutation,
-				T.gender,
-				T.nationality,
-				T.nativePreferredLanguage,
-				T.dateOfBirth,
-				T.country,
-				T.zipCode,
-				T.address1,
-				T.address2,
-				T.address3,
-				T.address4,
-				T.city,
-				T.state,
-				T.personalEmail,
-				T.privatePhoneCountryCode,
-				T.privatePhoneNumber
-		FROM 	Database.dbo.{TBL_PERSON} AS T 
-		WHERE 	T.personIdExternal = personIdExternal;					
-	END;
 
 
 	CREATE PROCEDURE ProcessEmployment(IN inRef REFERENCE,

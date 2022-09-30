@@ -15,6 +15,7 @@ CREATE TABLE [dbo].[EmpPerson](
 	[nationality] [nvarchar](128) NULL,
 	[nativePreferredLanguage] [nvarchar](256) NULL,
 	[dateOfBirth] [datetime] NULL,
+	[cprNumber] [nvarchar](20) NULL,
 	[country] [nvarchar](256) NULL,
 	[state] [nvarchar](256) NULL,
 	[city] [nvarchar](256) NULL,
