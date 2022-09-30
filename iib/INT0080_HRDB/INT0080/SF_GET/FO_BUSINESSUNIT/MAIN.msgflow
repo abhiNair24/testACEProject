@@ -18,7 +18,7 @@
       <nodes xmi:type="ComIbmMQOutput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_4" location="1072,139" queueName="INT0080.PROCESS.ORGUNIT" transactionMode="no" newMsgId="true">
         <translation xmi:type="utility:ConstantString" string="INT0080.PROCESS.ORGUNIT"/>
       </nodes>
-      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_5" location="771,135" URLSpecifier="http://dummy" httpMethod="GET" httpVersion="1.1" protocol="TLSv1.2" hostnameChecking="true" messageDomainProperty="JSON">
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_5" location="771,135" URLSpecifier="http://dummy" timeoutForServer="240" httpMethod="GET" httpVersion="1.1" protocol="TLSv1.2" hostnameChecking="true" messageDomainProperty="JSON">
         <translation xmi:type="utility:ConstantString" string="HTTP Request"/>
       </nodes>
       <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_6" location="918,137" computeExpression="esql://routine/INT0080.COMMON#CheckIfMoreToGet.Main">
