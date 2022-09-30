@@ -488,7 +488,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				COALESCE(nationality, '') <> COALESCE(Environment.tmp.Person.nationality, '') OR
 				COALESCE(nativePrefLang, '') <> COALESCE(Environment.tmp.Person.nativePreferredLanguage, '') OR
 				COALESCE(dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Person.dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-				COALESCE(cprNumberEncoded, '') <> COALESCE(Environment.tmp.Person.cprNumberEncoded, '') OR
+				COALESCE(cprNumberEncoded, '') <> COALESCE(Environment.tmp.Person.cprNumber, '') OR
 				COALESCE(country, '') <> COALESCE(Environment.tmp.Person.country, '') OR
 				COALESCE(state, '') <> COALESCE(Environment.tmp.Person.state, '') OR
 				COALESCE(city, '') <> COALESCE(Environment.tmp.Person.city, '') OR
@@ -501,6 +501,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				COALESCE(privPhoneCtryCode, '') <> COALESCE(Environment.tmp.Person.privatePhoneCountryCode, '') OR
 				COALESCE(privPhoneNbr, '') <> COALESCE(Environment.tmp.Person.privatePhoneNumber, '')) THEN
 			SET datbaseAction = 'Update';
+		ELSE 
+			SET datbaseAction = 'LastSyncDate';
 		END IF;		
 		
 		IF (datbaseAction = 'Insert') THEN
