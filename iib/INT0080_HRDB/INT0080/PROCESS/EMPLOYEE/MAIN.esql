@@ -614,12 +614,15 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		DECLARE orgUnitId			 	CHAR;
 		DECLARE department			 	CHAR;
 		DECLARE division			 	CHAR;
+		DECLARE payGrade				CHAR;
+		DECLARE jobLevel				CHAR;
 		DECLARE businessUnit			CHAR;
 		DECLARE costCenterId			CHAR;
 		DECLARE positionId 				CHAR;
 		DECLARE positionName			CHAR;
 		DECLARE employeeClass 			CHAR;
 		DECLARE employeeSubClass 		CHAR;
+		DECLARE employeeType			CHAR;
 		DECLARE employmentType			CHAR;
 		DECLARE standardHours			FLOAT;
 		DECLARE workingDaysPerWeek		FLOAT;
@@ -675,6 +678,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			SET locationId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.locationNav.externalCode, 128));	
 			SET department 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.department, 32));
 			SET division				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.division, 32));
+			SET payGrade				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.payGradeNav.name, 64));
+			SET jobLevel				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_jobLevel, 64));
 			SET businessUnit			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.businessUnit, 32));	
 			SET orgUnitId 				= TRIM(LEFT(GetOrgunitId(department, division, businessUnit), 32));			
 			SET costCenterId 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.costCenter, 32));
@@ -705,7 +710,9 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 	      	  	        	  		          
 	        IF (employeeSubClass IS NULL) THEN
 	        	SET employeeSubClass = employeeClass;
-	        END IF;	  		          
+	        END IF;
+	        
+	        SET employeeType			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.customString4Nav.externalName, 255));	          
 	      	  	        	  		          	
 			-- Get employmentType
 			SET employmentType = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
@@ -835,11 +842,14 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 			ELSEIF (COALESCE(orgUnitId, '') <> COALESCE(Environment.tmp.Employment.orgUnitId, '') ) THEN SET firstMismatch = 'orgUnitId';
 			ELSEIF (COALESCE(department, '') <> COALESCE(Environment.tmp.Employment.department, '') ) THEN SET firstMismatch = 'department';
 			ELSEIF (COALESCE(division, '') <> COALESCE(Environment.tmp.Employment.division, '') ) THEN SET firstMismatch = 'division';
+			ELSEIF (COALESCE(payGrade, '') <> COALESCE(Environment.tmp.Employment.payGrade, '') ) THEN SET firstMismatch = 'payGrade';
+			ELSEIF (COALESCE(jobLevel, '') <> COALESCE(Environment.tmp.Employment.jobLevel, '') ) THEN SET firstMismatch = 'jobLevel';
 			ELSEIF (COALESCE(businessUnit, '') <> COALESCE(Environment.tmp.Employment.businessUnit, '') ) THEN SET firstMismatch = 'businessUnit';
 			ELSEIF (COALESCE(positionId, '') <> COALESCE(Environment.tmp.Employment.positionId, '') ) THEN SET firstMismatch = 'positionId';
 			ELSEIF (COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.Employment.costCenterId, '') ) THEN SET firstMismatch = 'costCenterId';
 			ELSEIF (COALESCE(employeeClass, '') <> COALESCE(Environment.tmp.Employment.employeeClass, '') ) THEN SET firstMismatch = 'employeeClass';
 			ELSEIF (COALESCE(employeeSubClass, '') <> COALESCE(Environment.tmp.Employment.employeeSubClass, '') ) THEN SET firstMismatch = 'employeeSubClass';
+			ELSEIF (COALESCE(employeeType, '') <> COALESCE(Environment.tmp.Employment.employeeType, '') ) THEN SET firstMismatch = 'employeeType';
 			ELSEIF (COALESCE(employmentType, '') <> COALESCE(Environment.tmp.Employment.employmentType, '') ) THEN SET firstMismatch = 'employmentType';
 			ELSEIF (COALESCE(employmentStatus, '') <> COALESCE(Environment.tmp.Employment.employmentStatus, '') ) THEN SET firstMismatch = 'employmentStatus';
 			ELSEIF (isManager <> Environment.tmp.Employment.isManager ) THEN SET firstMismatch = 'isManager';
@@ -913,6 +923,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 												   		  orgUnitId,
 												   		  department,
 												   		  division,
+												   		  payGrade,
+												   		  jobLevel,
 												   		  businessUnit,
 												   		  orgUnitLevel1,
 												   		  orgUnitLevel2,
@@ -925,6 +937,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 												   		  costCenterId,
 												   		  employeeClass,
 												   		  employeeSubClass,
+												   		  employeeType,
 												   		  employmentType,
 												   		  employmentStatus,
 												   		  standardHours,
@@ -963,6 +976,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 									orgUnitId,
 									department,
 									division,
+									payGrade,
+									jobLevel,
 									businessUnit,
 									orgUnitLevel1,
 									orgUnitLevel2,
@@ -975,6 +990,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 									costCenterId,
 									employeeClass,
 									employeeSubClass,
+									employeeType,
 									employmentType,
 									employmentStatus,
 									standardHours,
@@ -1034,6 +1050,8 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				T.orgUnitId,
 				T.department,
 				T.division,
+				T.payGrade,
+				T.jobLevel,
 				T.businessUnit,
 				T.orgUnitLevel1,
       			T.orgUnitLevel2,
@@ -1046,6 +1064,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				T.costCenterId,
 				T.employeeClass,
 				T.employeeSubClass,
+				T.employeeType,
 				T.employmentType,
 				T.employmentStatus,
 				T.isManager,

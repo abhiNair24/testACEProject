@@ -120,8 +120,9 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/businessUnit,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/company,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/position,';
-		SET vSelect = vSelect || 'employmentNav/jobInfoNav/costCenter,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/costCenter,';	
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/payGrade,';
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/payGradeNav/name,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/standardHours,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/workingDaysPerWeek,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/fte,';
@@ -146,6 +147,7 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/locationNav/externalCode,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/locationNav/name,';
 
+		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/cust_jobLevel,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/externalName_defaultValue,';
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/cust_orgUnitLevel1,';			
 		SET vSelect = vSelect || 'employmentNav/jobInfoNav/positionNav/cust_orgUnitLevel2,';
@@ -182,7 +184,8 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/eventNav/picklistLabels,';
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/emplStatusNav/picklistLabels,';
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/locationNav,';
-		SET vExpand = vExpand || 'employmentNav/jobInfoNav/managerUserNav,';	
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/managerUserNav,';
+		SET vExpand = vExpand || 'employmentNav/jobInfoNav/payGradeNav,';	
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/positionNav/positionMatrixRelationship,';
 		SET vExpand = vExpand || 'employmentNav/jobInfoNav/positionNav/parentPosition,';
 		--SET vExpand = vExpand || 'employmentNav/jobInfoNav/jobCodeNav,';
