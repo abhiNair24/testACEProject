@@ -1,4 +1,4 @@
-CREATE VIEW dbo.view_PEAKON AS
+CREATE OR ALTER VIEW dbo.INT0101_view_Peakon AS
 SELECT DISTINCT
 	EE.[userId] AS employeeNumber
 	, EE.[firstName] AS givenName 
@@ -35,7 +35,6 @@ SELECT DISTINCT
       THEN 'Manager'
       ELSE 'Employee'
 	  END AS managerEmployee
-	-- , AS talents
 	, CASE 
 	  WHEN OU3.[name] IS NOT NULL THEN CONCAT ( OU3.[name], ' (', OU3.[orgUnitId],')')
 	  END AS division
@@ -47,7 +46,7 @@ FROM [HRDB].[dbo].[EmpEmployment] AS EE
 	LEFT JOIN [HRDB].[dbo].[OrgUnit] AS OU2 ON EE.businessUnit = OU2.orgUnitId
 	LEFT JOIN [HRDB].[dbo].[OrgUnit] AS OU3 ON EE.division = OU3.orgUnitId
 	LEFT JOIN [HRDB].[dbo].[Location] AS LO ON EE.locationId = LO.locationId
-	LEFT JOIN [HRDB].[dbo].[Country] AS CO ON SUBSTRING(EE.locationId,1,3) = CO.countryCode
+	LEFT JOIN [HRDB].[dbo].[Country] AS CO ON EP.country = CO.countryCode
 WHERE EE.recordToDate IS NULL
 	AND (EE.lastDateWorked is null or EE.lastDateWorked > DATEADD(MONTH, -1 , CURRENT_TIMESTAMP ) )
 	AND EE.employeeClass <> 'Non-Employee'
