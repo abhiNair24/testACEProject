@@ -46,7 +46,7 @@ FROM [HRDB].[dbo].[EmpEmployment] AS EE
 	LEFT JOIN [HRDB].[dbo].[OrgUnit] AS OU2 ON EE.businessUnit = OU2.orgUnitId
 	LEFT JOIN [HRDB].[dbo].[OrgUnit] AS OU3 ON EE.division = OU3.orgUnitId
 	LEFT JOIN [HRDB].[dbo].[Location] AS LO ON EE.locationId = LO.locationId
-	LEFT JOIN [HRDB].[dbo].[Country] AS CO ON EP.country = CO.countryCode
+	LEFT JOIN [HRDB].[dbo].[Country] AS CO ON LO.Country = CO.countryCode
 WHERE EE.recordToDate IS NULL
 	AND (EE.lastDateWorked is null or EE.lastDateWorked > DATEADD(MONTH, -1 , CURRENT_TIMESTAMP ) )
 	AND EE.employeeClass <> 'Non-Employee'
