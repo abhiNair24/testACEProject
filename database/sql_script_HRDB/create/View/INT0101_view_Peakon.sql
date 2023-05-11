@@ -1,6 +1,7 @@
 CREATE OR ALTER VIEW dbo.INT0101_view_Peakon AS
 SELECT DISTINCT
-	EE.[userId] AS employeeNumber
+	EE.[personIdExternal] AS externalId
+	, EE.[personIdExternal] AS employeeNumber
 	, EE.[firstName] AS givenName 
 	, EE.[lastName] AS familyName
 	, EE.[businessEmail] AS emails

@@ -20,6 +20,7 @@ CREATE TABLE [int].[INT0101_DataFromPeakon](
 	[active] [nvarchar](20) NULL,
 	[peakonId] [nvarchar](32) NOT NULL,
 	[userName] [nvarchar](128) NULL,
+	[externalId] [nvarchar](32) NULL,
 	[employeeNumber] [nvarchar](32) NOT NULL,
 	[givenName] [nvarchar](128) NULL,
 	[familyName] [nvarchar](128) NULL,
