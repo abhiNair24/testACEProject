@@ -666,8 +666,10 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 
 		SET personIdExternal = TRIM(LEFT(inRef.personIdExternal, 32));
 	
-		-- Get lastDateWorked (done before / outside if(vIgnore=FALSE) since it can cause vIgnore to be set. 
-		CALL GetLastWorkingDay(inRef, vEmpAr, lastDateWorked, vIgnore);
+		-- Get LastWorkingDay
+		IF (vIgnore = FALSE) THEN
+			CALL GetLastWorkingDay(inRef, vEmpAr, lastDateWorked, vIgnore);
+		END IF;
 		
 		IF (vIgnore = FALSE) THEN
 			SET userId 					= inRef.employmentNav.results.Item[vEmpAr].userId;	
@@ -1021,21 +1023,18 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 									syncTime);				--lastSyncDate	
 
 				COMMIT; -- Avoid long running locks
-			END IF;
-		END IF; 				          	   		         	        
-		
-		-- KLJ: ELSEIF removed since lastSyncDate should NOT be updated when vIgnore=TRUE ('error situation'). 
-		-- ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
+			END IF; 				          	   		         	        
+		 ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
 			
-			-- Get current employee in table Employment
-			-- CALL GetCurrentEmpInEmployment(personIdExternal);
+			 --Get current employee in table Employment
+			 CALL GetCurrentEmpInEmployment(personIdExternal);
 			
-			-- IF (CARDINALITY(Environment.tmp.Employment[]) > 0) THEN
-			--	UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
-			--	SET lastSyncDate = syncTime
-			--	WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
-			-- END IF;
-		-- END IF;
+			 IF (CARDINALITY(Environment.tmp.Employment[]) > 0) THEN
+				UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+				SET lastSyncDate = syncTime
+				WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
+			 END IF;
+		 END IF;
 	END;
 
 	CREATE PROCEDURE GetCurrentEmpInEmployment(IN personIdExternal CHAR) BEGIN			
