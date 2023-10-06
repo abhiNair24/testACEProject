@@ -55,19 +55,20 @@ CREATE COMPUTE MODULE ProcessEmployee
 					END IF;	
 
 					-- Process Person			
-					IF (vIgnore = FALSE) THEN
-						CALL ProcessPerson(inRef,
-										   vEmpAr,
-										   syncTime);
-	
+					CALL ProcessPerson(inRef,
+									   vEmpAr,
+									   vIgnore,
+									   syncTime);
+
+					
 					-- Process Employment	
 					CALL ProcessEmployment(inRef,
 									   	   vEmpAr,
 									       workerType,
 									       globAssign,
 									       vIgnore,
-									       syncTime);			
-				END IF;
+									       syncTime);		
+				
 			END IF;	
 							
 			MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
@@ -391,6 +392,7 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 
 	CREATE PROCEDURE ProcessPerson(IN inRef REFERENCE,
 								   IN vEmpAr INT,
+								   IN vIgnore BOOLEAN,								   
 								   IN syncTime TIMESTAMP) BEGIN
 	
 		DECLARE personIdExternal	CHAR;
@@ -415,146 +417,128 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 		DECLARE datbaseAction		CHAR;
 	
 		SET personIdExternal 		= TRIM(LEFT(inRef.personIdExternal, 32));
-		
-		
-		SET initials 				= TRIM(LEFT(inRef.customString10, 128));		
-		SET salutation				= TRIM(LEFT(inRef.personalInfoNav.results.Item.salutationNav.externalCode, 256));		
-		SET gender					= TRIM(LEFT(inRef.personalInfoNav.results.Item.gender, 2));
-		SET nationality				= TRIM(LEFT(inRef.personalInfoNav.results.Item.nationality, 128));
-		SET nativePrefLang			= TRIM(LEFT(inRef.personalInfoNav.results.Item.nativePreferredLangNav.externalCode, 256));
-		SET dateOfBirth 			= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].userNav.dateOfBirth);
-		
-		IF ( inRef.nationalIdNav.results.Item.cardType = 'CPR' ) THEN
-			SET cprNumberEncoded = BASE64ENCODE( inRef.nationalIdNav.results.Item.nationalId);
-		END IF; 
-		
-		SET country					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.country, 256));
-		SET state					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.stateNav.externalCode, 256));
-		SET city					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.city, 256));
-		SET zipCode					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.zipCode, 256));
-		SET address1				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address1, 256));
-		SET address2				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address2, 256));
-		SET address3				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address3, 256));
-		SET address4				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address4, 256));
-
-		-- Get personalEmailAddress							          	   		 
-		SET personalEmail = TRIM(LEFT(LOWER(THE (SELECT ITEM fieldvalue(r.emailAddress)
-				   		  	  	     			 FROM inRef.emailNav.results.Item[] AS r
-					      	  	     			 WHERE r.emailTypeNav.externalCode = 'P')), 100));
-	      	  	     		
-		-- Get privatePhoneCountryCode
-		SET privPhoneCtryCode = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.countryCode)
-			          	   		 		   	   FROM inRef.phoneNav.results.Item[] AS r
-			          	   		   		   	   WHERE r.phoneTypeNav.externalCode = 'O'), 32));
-		
-		-- Get privatePhoneNumber
-		SET privPhoneNbr = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.phoneNumber)
-			          	   		 		  FROM inRef.phoneNav.results.Item[] AS r
-			          	   		   		  WHERE r.phoneTypeNav.externalCode = 'O'), 100));	          	   		   		   		 			      	  
 	
-					      	  				
-		-- Get current person in table Person 
-		SET Environment.tmp.Person[] = 
-		SELECT  T.personIdExternal,
-				T.initials,
-				T.salutation,
-				T.gender,
-				T.nationality,
-				T.nativePreferredLanguage,
-				T.dateOfBirth,
-				T.cprNumber,
-				T.country,
-				T.zipCode,
-				T.address1,
-				T.address2,
-				T.address3,
-				T.address4,
-				T.city,
-				T.state,
-				T.personalEmail,
-				T.privatePhoneCountryCode,
-				T.privatePhoneNumber
-		FROM 	Database.dbo.{TBL_PERSON} AS T 
-		WHERE 	T.personIdExternal = personIdExternal;	
+		IF (vIgnore = FALSE) THEN	
 		
+			SET initials 				= TRIM(LEFT(inRef.customString10, 128));		
+			SET salutation				= TRIM(LEFT(inRef.personalInfoNav.results.Item.salutationNav.externalCode, 256));		
+			SET gender					= TRIM(LEFT(inRef.personalInfoNav.results.Item.gender, 2));
+			SET nationality				= TRIM(LEFT(inRef.personalInfoNav.results.Item.nationality, 128));
+			SET nativePrefLang			= TRIM(LEFT(inRef.personalInfoNav.results.Item.nativePreferredLangNav.externalCode, 256));
+			SET dateOfBirth 			= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].userNav.dateOfBirth);
 			
-		/* Check if insert new person information or update current person information or 
-		   just update lastSyncDate for a current person */
-		IF (CARDINALITY(Environment.tmp.Person[]) = 0) THEN
-			SET datbaseAction = 'Insert';
-		ELSEIF (COALESCE(initials, '') <> COALESCE(Environment.tmp.Person.initials, '') OR
-				COALESCE(salutation, '') <> COALESCE(Environment.tmp.Person.salutation, '') OR
-				COALESCE(gender, '') <> COALESCE(Environment.tmp.Person.gender, '') OR
-				COALESCE(nationality, '') <> COALESCE(Environment.tmp.Person.nationality, '') OR
-				COALESCE(nativePrefLang, '') <> COALESCE(Environment.tmp.Person.nativePreferredLanguage, '') OR
-				COALESCE(dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Person.dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-				COALESCE(cprNumberEncoded, '') <> COALESCE(Environment.tmp.Person.cprNumber, '') OR
-				COALESCE(country, '') <> COALESCE(Environment.tmp.Person.country, '') OR
-				COALESCE(state, '') <> COALESCE(Environment.tmp.Person.state, '') OR
-				COALESCE(city, '') <> COALESCE(Environment.tmp.Person.city, '') OR
-				COALESCE(zipCode, '') <> COALESCE(Environment.tmp.Person.zipCode, '') OR
-				COALESCE(address1, '') <> COALESCE(Environment.tmp.Person.address1, '') OR
-				COALESCE(address2, '') <> COALESCE(Environment.tmp.Person.address2, '') OR
-				COALESCE(address3, '') <> COALESCE(Environment.tmp.Person.address3, '') OR
-				COALESCE(address4, '') <> COALESCE(Environment.tmp.Person.address4, '') OR
-				COALESCE(personalEmail, '') <> COALESCE(Environment.tmp.Person.personalEmail, '') OR
-				COALESCE(privPhoneCtryCode, '') <> COALESCE(Environment.tmp.Person.privatePhoneCountryCode, '') OR
-				COALESCE(privPhoneNbr, '') <> COALESCE(Environment.tmp.Person.privatePhoneNumber, '')) THEN
-			SET datbaseAction = 'Update';
-		ELSE 
-			SET datbaseAction = 'LastSyncDate';
-		END IF;		
-		
-		IF (datbaseAction = 'Insert') THEN
-			INSERT INTO Database.dbo.EmpPerson(
-				  personIdExternal,
-				  initials,
-				  salutation,
-				  gender,
-				  nationality,
-				  nativePreferredLanguage,
-				  dateOfBirth,
-				  cprNumber,
-				  country,
-				  state,
-				  city,
-				  zipCode,
-				  address1,
-				  address2,
-				  address3,
-				  address4,
-				  personalEmail,
-				  privatePhoneCountryCode,
-				  privatePhoneNumber,
-				  recordLastUpdated,
-				  lastSyncDate)
-			VALUES (personIdExternal,	
-					initials,						
-					salutation,			
-					gender,					
-					nationality,		
-					nativePrefLang,				
-					dateOfBirth,
-					cprNumberEncoded,								
-					country,						
-					state,							
-					city,		
-					zipCode,													
-					address1,					
-					address2,												
-					address3,				
-					address4,				
-					personalEmail,													
-					privPhoneCtryCode,
-					privPhoneNbr,									
-					syncTime,	-- recordLastUpdated
-					syncTime);	-- lastSyncDate	
+			IF ( inRef.nationalIdNav.results.Item.cardType = 'CPR' ) THEN
+				SET cprNumberEncoded = BASE64ENCODE( inRef.nationalIdNav.results.Item.nationalId);
+			END IF; 
 			
-			COMMIT;
+			SET country					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.country, 256));
+			SET state					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.stateNav.externalCode, 256));
+			SET city					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.city, 256));
+			SET zipCode					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.zipCode, 256));
+			SET address1				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address1, 256));
+			SET address2				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address2, 256));
+			SET address3				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address3, 256));
+			SET address4				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address4, 256));
+	
+			-- Get personalEmailAddress							          	   		 
+			SET personalEmail = TRIM(LEFT(LOWER(THE (SELECT ITEM fieldvalue(r.emailAddress)
+					   		  	  	     			 FROM inRef.emailNav.results.Item[] AS r
+						      	  	     			 WHERE r.emailTypeNav.externalCode = 'P')), 100));
+		      	  	     		
+			-- Get privatePhoneCountryCode
+			SET privPhoneCtryCode = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.countryCode)
+				          	   		 		   	   FROM inRef.phoneNav.results.Item[] AS r
+				          	   		   		   	   WHERE r.phoneTypeNav.externalCode = 'O'), 32));
 			
-		ELSEIF (datbaseAction = 'Update') THEN
+			-- Get privatePhoneNumber
+			SET privPhoneNbr = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.phoneNumber)
+				          	   		 		  FROM inRef.phoneNav.results.Item[] AS r
+				          	   		   		  WHERE r.phoneTypeNav.externalCode = 'O'), 100));	          	   		   		   		 			      	  	
 			
-			UPDATE Database.dbo.{TBL_PERSON} AS T
+			-- Get current person in table Person
+			CALL GetCurrentPerson(personIdExternal);
+				
+			/* Check if insert new person information or update current person information or 
+			   just update lastSyncDate for a current person */
+			IF (CARDINALITY(Environment.tmp.Person[]) = 0) THEN
+				SET datbaseAction = 'Insert';
+			ELSEIF (COALESCE(initials, '') <> COALESCE(Environment.tmp.Person.initials, '') OR
+					COALESCE(salutation, '') <> COALESCE(Environment.tmp.Person.salutation, '') OR
+					COALESCE(gender, '') <> COALESCE(Environment.tmp.Person.gender, '') OR
+					COALESCE(nationality, '') <> COALESCE(Environment.tmp.Person.nationality, '') OR
+					COALESCE(nativePrefLang, '') <> COALESCE(Environment.tmp.Person.nativePreferredLanguage, '') OR
+					COALESCE(dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Person.dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
+					COALESCE(cprNumberEncoded, '') <> COALESCE(Environment.tmp.Person.cprNumber, '') OR
+					COALESCE(country, '') <> COALESCE(Environment.tmp.Person.country, '') OR
+					COALESCE(state, '') <> COALESCE(Environment.tmp.Person.state, '') OR
+					COALESCE(city, '') <> COALESCE(Environment.tmp.Person.city, '') OR
+					COALESCE(zipCode, '') <> COALESCE(Environment.tmp.Person.zipCode, '') OR
+					COALESCE(address1, '') <> COALESCE(Environment.tmp.Person.address1, '') OR
+					COALESCE(address2, '') <> COALESCE(Environment.tmp.Person.address2, '') OR
+					COALESCE(address3, '') <> COALESCE(Environment.tmp.Person.address3, '') OR
+					COALESCE(address4, '') <> COALESCE(Environment.tmp.Person.address4, '') OR
+					COALESCE(personalEmail, '') <> COALESCE(Environment.tmp.Person.personalEmail, '') OR
+					COALESCE(privPhoneCtryCode, '') <> COALESCE(Environment.tmp.Person.privatePhoneCountryCode, '') OR
+					COALESCE(privPhoneNbr, '') <> COALESCE(Environment.tmp.Person.privatePhoneNumber, '')) THEN
+				SET datbaseAction = 'Update';
+			ELSE 
+					UPDATE Database.dbo.{TBL_PERSON} AS T 
+					SET lastSyncDate = syncTime
+					WHERE T.personIdExternal = personIdExternal;
+					
+					COMMIT; -- Avoid long running locks
+			END IF;		
+			
+			IF (datbaseAction = 'Insert') THEN
+				INSERT INTO Database.dbo.EmpPerson(
+					  personIdExternal,
+					  initials,
+					  salutation,
+					  gender,
+					  nationality,
+					  nativePreferredLanguage,
+					  dateOfBirth,
+					  cprNumber,
+					  country,
+					  state,
+					  city,
+					  zipCode,
+					  address1,
+					  address2,
+					  address3,
+					  address4,
+					  personalEmail,
+					  privatePhoneCountryCode,
+					  privatePhoneNumber,
+					  recordLastUpdated,
+					  lastSyncDate)
+				VALUES (personIdExternal,	
+						initials,						
+						salutation,			
+						gender,					
+						nationality,		
+						nativePrefLang,				
+						dateOfBirth,
+						cprNumberEncoded,								
+						country,						
+						state,							
+						city,		
+						zipCode,													
+						address1,					
+						address2,												
+						address3,				
+						address4,				
+						personalEmail,													
+						privPhoneCtryCode,
+						privPhoneNbr,									
+						syncTime,	-- recordLastUpdated
+						syncTime);	-- lastSyncDate	
+				
+				COMMIT;
+				
+			ELSEIF (datbaseAction = 'Update') THEN
+				
+				UPDATE Database.dbo.{TBL_PERSON} AS T
 				SET personIdExternal 		= personIdExternal, 
 					initials 				= initials,
 					salutation 				= salutation,
@@ -577,24 +561,51 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 					recordLastUpdated 		= syncTime,
 					lastSyncDate 			= syncTime
 				WHERE T.personIdExternal = personIdExternal;
+					
+				COMMIT;		
 				
-			COMMIT;
-				
+			END IF;
 		
-		ELSE -- Update lastSyncDate even if any other update should be ignored
-	
+		ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
+			
+			-- Get current person in table Person
+			CALL GetCurrentPerson(personIdExternal);
+			
 			IF (CARDINALITY(Environment.tmp.Person[]) > 0) THEN
 				UPDATE Database.dbo.{TBL_PERSON} AS T 
 				SET lastSyncDate = syncTime
 				WHERE T.personIdExternal = personIdExternal;
-				
+						
 				COMMIT; -- Avoid long running locks
-				
+						
 			END IF;
-			
 		END IF;
-
 	END;	
+
+	CREATE PROCEDURE GetCurrentPerson(IN personIdExternal CHAR) BEGIN			
+		SET Environment.tmp.Person[] = 
+		SELECT  T.personIdExternal,
+				T.initials,
+				T.salutation,
+				T.gender,
+				T.nationality,
+				T.nativePreferredLanguage,
+				T.dateOfBirth,
+				T.cprNumber,
+				T.country,
+				T.zipCode,
+				T.address1,
+				T.address2,
+				T.address3,
+				T.address4,
+				T.city,
+				T.state,
+				T.personalEmail,
+				T.privatePhoneCountryCode,
+				T.privatePhoneNumber
+		FROM 	Database.dbo.{TBL_PERSON} AS T 
+		WHERE 	T.personIdExternal = personIdExternal;				
+	END;
 
 
 	CREATE PROCEDURE ProcessEmployment(IN inRef REFERENCE,
@@ -1094,9 +1105,6 @@ CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOL
 				T.recordTodate IS NULL;					
 	END;
 	
-
-	
-		
 	
 END MODULE;								  	  				
 
