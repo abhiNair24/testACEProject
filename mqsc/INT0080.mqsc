@@ -3,10 +3,8 @@
 * History              : 20210807 Creation date
 * Description          : Websphere MQSeries Definition file
 *                      : This definition file creates the mq configuration
-*                      : 
-*                      : 
-*                      : 
-*                      : 
+* Revision             : $Id$
+* Script               : $URL$
 ************************ 
 
 * Run script from text file
