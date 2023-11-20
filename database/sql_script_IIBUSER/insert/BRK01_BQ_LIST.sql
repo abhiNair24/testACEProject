@@ -2,8 +2,8 @@
 -- Author                 : Klaus Johansen (KLJ)
 -- History                : 2022-04-12 Creation date
 -- Description            : Add to list for backout queues to be cleaned regulary 
--- Revision               : $Id:$
--- Script:                : $URL:$
+-- Revision               : $Id$
+-- Script:                : $URL$
 -- ************************
 
 set echo on
