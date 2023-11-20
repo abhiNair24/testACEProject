@@ -12,7 +12,7 @@ CREATE TABLE [dbo].[SynchODdataLog](
 	[Type] [nvarchar](20) NULL,
 	[Status] [nvarchar](20) NULL,
 	[SF_Root_Object] [nvarchar](80) NULL,
-	[SF_Id_Field] [nvarchar](50) NULL,	
+	[SF_Id_Field] [nvarchar](50) NULL,
 	[SF_Id_Value] [nvarchar](50) NULL,
 	[Object] [nvarchar](80) NULL,
 	[Event_Text] [nvarchar](1000) NULL

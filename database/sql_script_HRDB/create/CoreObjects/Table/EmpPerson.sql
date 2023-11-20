@@ -9,9 +9,9 @@ GO
 
 CREATE TABLE [dbo].[EmpPerson](
 	[personIdExternal] [nvarchar](32) NOT NULL,
-	[initials] [nvarchar](128) NOT NULL,	
-	[salutation] [nvarchar](256) NULL,	
-	[gender] [nvarchar](2) NULL,	
+	[initials] [nvarchar](128) NOT NULL,
+	[salutation] [nvarchar](256) NULL,
+	[gender] [nvarchar](2) NULL,
 	[nationality] [nvarchar](128) NULL,
 	[nativePreferredLanguage] [nvarchar](256) NULL,
 	[dateOfBirth] [datetime] NULL,
@@ -27,11 +27,13 @@ CREATE TABLE [dbo].[EmpPerson](
 	[personalEmail] [nvarchar](100) NULL,
 	[privatePhoneCountryCode] [nvarchar](32) NULL,
 	[privatePhoneNumber] [nvarchar](100) NULL,
-	[recordLastUpdated] [datetime] NULL,	
-	[lastSyncDate] [datetime] NULL,	
- CONSTRAINT [PK_EmpPerson] PRIMARY KEY CLUSTERED 
+	[recordLastUpdated] [datetime] NULL,
+	[lastSyncDate] [datetime] NULL,
+ CONSTRAINT [dbo.PK_EmpPerson] PRIMARY KEY CLUSTERED 
 (
 	[personIdExternal] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, FILLFACTOR = 90) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
+
+

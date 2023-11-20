@@ -16,7 +16,7 @@ CREATE TABLE [dbo].[OrgUnit](
 	[headOfUnitUserId] [nvarchar](100) NULL,
 	[status] [nvarchar](2) NULL,
 	[recordLastUpdated] [datetime] NULL,
-	[lastSyncDate] [datetime] NULL,	
+	[lastSyncDate] [datetime] NULL,
  CONSTRAINT [PK_OrgUnit] PRIMARY KEY CLUSTERED 
 (
 	[orgUnitId] ASC

@@ -11,7 +11,7 @@ CREATE TABLE [dbo].[Country](
 	[countryCode] [nvarchar](8) NOT NULL,
 	[name] [nvarchar](255) NULL,
 	[twoCharCountryCode] [nvarchar](128) NULL,
-	[currency] [nvarchar](128) NULL,	
+	[currency] [nvarchar](128) NULL,
 	[status] [nvarchar](2) NULL,
 	[recordLastUpdated] [datetime] NULL,
 	[lastSyncDate] [datetime] NULL,
