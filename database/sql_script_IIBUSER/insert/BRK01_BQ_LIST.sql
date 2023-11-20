@@ -9,7 +9,7 @@
 set echo on
 whenever sqlerror exit failure
 
-delete from IIBUSER.BRK01_BQ_LIST where QUEUE like 'INT0079%' ;
+delete from IIBUSER.BRK01_BQ_LIST where QUEUE like 'INT0080%' ;
 
 Insert into IIBUSER.BRK01_BQ_LIST (QUEUE,EXPIRY) values ('INT0080.GET.COUNTRY.BQ','0');
 Insert into IIBUSER.BRK01_BQ_LIST (QUEUE,EXPIRY) values ('INT0080.GET.FO.BUSINESSUNIT.BQ','0');
