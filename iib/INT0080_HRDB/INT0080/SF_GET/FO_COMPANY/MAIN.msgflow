@@ -21,7 +21,7 @@
       <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_5" location="773,169" computeExpression="esql://routine/INT0080.COMMON#CheckIfMoreToGet.Main">
         <translation xmi:type="utility:ConstantString" string="CheckIfMoreToGet"/>
       </nodes>
-      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_6" location="662,169" URLSpecifier="http://dummy" timeoutForServer="240" httpMethod="GET" httpVersion="1.1" protocol="TLSv1.2" hostnameChecking="true" messageDomainProperty="JSON">
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_6" location="662,169" URLSpecifier="http://dummy" timeoutForServer="240" httpMethod="GET" httpVersion="1.1" protocol="TLS" hostnameChecking="true" messageDomainProperty="JSON">
         <translation xmi:type="utility:ConstantString" string="HTTP Request"/>
       </nodes>
       <nodes xmi:type="ICC_FRMWRK_ICC0001_MQ_INPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_9" location="231,160" INTID="INT0080">

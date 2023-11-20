@@ -9,7 +9,7 @@
     <longDescription xmi:type="utility:ConstantString" string="$MQSI MsgFlow = $URL$:MQSI$"/>
     <version xmi:type="utility:ConstantString" string="$Id$"/>
     <composition>
-      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="709,166" URLSpecifier="http://dummy" timeoutForServer="240" httpMethod="GET" httpVersion="1.1" protocol="TLSv1.2" hostnameChecking="true" messageDomainProperty="JSON">
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="709,166" URLSpecifier="http://dummy" timeoutForServer="240" httpMethod="GET" httpVersion="1.1" protocol="TLS" hostnameChecking="true" messageDomainProperty="JSON">
         <translation xmi:type="utility:ConstantString" string="HTTP Request"/>
       </nodes>
       <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_3" location="535,166" dataSource="HRDB" computeExpression="esql://routine/INT0080.SF_GET.FO_DIVISION#GetFODivision.Main" computeMode="destinationAndMessage">
