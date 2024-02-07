@@ -1,20 +1,19 @@
-BROKER SCHEMA INT0080.PROCESS.EMPLOYEE
+BROKER SCHEMA INT0080.PROCESS.EMPLOYEE.FUTURE
 -- $MQSI_VERSION=$Id$MQSI$
 -- $MQSI ESQL=$URL$MQSI$
 
 -- Working tables
-DECLARE TBL_PERSON				CONSTANT CHARACTER 'EmpPerson';
-DECLARE TBL_EMPLOYMENT			CONSTANT CHARACTER 'EmpEmployment';
 DECLARE TBL_EMPLOYMENT_FUTURE	CONSTANT CHARACTER 'EmpEmploymentFuture'; 
+DECLARE TBL_EMPLOYMENT			CONSTANT CHARACTER 'EmpEmployment'; 
 
-CREATE COMPUTE MODULE ProcessEmployee
+CREATE COMPUTE MODULE ProcessEmployeeFuture
 	CREATE FUNCTION Main() RETURNS BOOLEAN
 	BEGIN
 		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
 		DECLARE syncTime TIMESTAMP CAST(InputRoot.MQRFH2.usr.syncTime AS TIMESTAMP);
 		
 		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
-			CALL MapPerPerson(inRef, syncTime);
+			CALL MapPerPersonFuture(inRef, syncTime);
 			SET OutputRoot.XMLNSC.Employee.Info = 'Employees sucessfully processed.';	
 		ELSE
 			SET OutputRoot.XMLNSC.Employee.Info = 'No data found in input message.';			
@@ -24,7 +23,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 		RETURN TRUE;
 	END;
 
-	CREATE PROCEDURE MapPerPerson(IN inRef REFERENCE, IN syncTime TIMESTAMP) BEGIN
+	CREATE PROCEDURE MapPerPersonFuture(IN inRef REFERENCE, IN syncTime TIMESTAMP) BEGIN
 
 		DECLARE i INT 1;
 		
@@ -41,34 +40,25 @@ CREATE COMPUTE MODULE ProcessEmployee
 			SET Environment.initials = inRef.customString10;
 		
 			-- Get correct employmentNav array		
-			CALL GetEmploymentNav(inRef, vEmpAr, globAssign, vIgnore);
+			CALL GetEmploymentNav(inRef, vEmpAr, globAssign, vIgnore, vFilter);			
 			
-			-- Filter out some employees		
-			CALL Filter(inRef, vEmpAr, vFilter);
-			
-			IF (vFilter = FALSE) THEN
+			IF (vFilter = FALSE) THEN			
+				
 				-- Validate others
 				CALL ValidateAndLog(inRef, vEmpAr, vIgnore);
 													
-					-- Get SF Worker Type for Non Employees	
-					IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN
-						SET workerType = inRef.employmentNav.results.Item[vEmpAr].workOrderNav.results.Item.workerType;				  				  				
-					END IF;	
-
-					-- Process Person			
-					CALL ProcessPerson(inRef,
-									   vEmpAr,
-									   vIgnore,
-									   syncTime);
-
-					
-					-- Process Employment	
-					CALL ProcessEmployment(inRef,
-									   	   vEmpAr,
-									       workerType,
-									       globAssign,
-									       vIgnore,
-									       syncTime);		
+				-- Get SF Worker Type for Non Employees	
+				IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN
+					SET workerType = inRef.employmentNav.results.Item[vEmpAr].workOrderNav.results.Item.workerType;				  				  				
+				END IF;	
+				
+				-- Process Employment	
+				CALL ProcessEmploymentFuture(inRef,
+								   	   		 vEmpAr,
+								       		 workerType,
+								       		 globAssign,
+								       		 vIgnore,
+								       		 syncTime);		
 				
 			END IF;	
 							
@@ -79,7 +69,8 @@ CREATE COMPUTE MODULE ProcessEmployee
 	CREATE PROCEDURE GetEmploymentNav(IN inRef REFERENCE, 
 									  INOUT vEmpAr INT, 
 									  INOUT globAssign BOOLEAN, 
-									  INOUT vIgnore BOOLEAN) BEGIN
+									  INOUT vIgnore BOOLEAN,
+									  INOUT vFilter BOOLEAN) BEGIN
 		DECLARE nbrEmpNav INT;
 		DECLARE tmpStartDate TIMESTAMP;
 		DECLARE vStartDate TIMESTAMP;
@@ -89,9 +80,10 @@ CREATE COMPUTE MODULE ProcessEmployee
 		DECLARE vtodayDate CHAR;	
 		DECLARE i INT 1;
 		
+		-- Get current employee in table EmpEmployment
+		CALL GetCurrentEmpInEmployment(inRef.personIdExternal);	
 			
-		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00';
-		SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');		
+		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00';	
 		SET nbrEmpNav 	= CARDINALITY(inRef.employmentNav.results.Item[]);
 
 		IF (nbrEmpNav = 0) THEN
@@ -112,22 +104,17 @@ CREATE COMPUTE MODULE ProcessEmployee
 				SET vDateRange 	= vDateRange || '->endDate[' || CAST(i-1 AS CHAR) || ']:' || COALESCE(CAST(vEndDate AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'), 'null');
 
 				IF (globAssign = FALSE) THEN			
-									
-					-- Go for start date range check to find the valid employmentNav - employmentNav/startDate must be <= todays date
-					IF (vStartDate <= todayDate) THEN
-						
-						-- If employmentNav/endDate is null, then we assume this is the active record, even if another employmentNav/startDate is newer
-						IF (vEndDate IS NULL) THEN
-							SET nullEndDate = TRUE;
-							SET vEmpAr = i;
-						END IF;							
-						
-						-- employmentNav/startDate must be > than set start date(1970-01-01 00:00:00) or previous employmentNav/startDate
-						IF ((vStartDate > tmpStartDate) AND nullEndDate = FALSE) THEN
-							SET tmpStartDate = vStartDate;																
-							SET vEmpAr = i;
-						END IF;
-
+														
+					-- If employmentNav/endDate is null, then we assume this is the active record, even if another employmentNav/startDate is newer
+					IF (vEndDate IS NULL) THEN
+						SET nullEndDate = TRUE;
+						SET vEmpAr = i;
+					END IF;							
+					
+					-- employmentNav/startDate must be > than set start date(1970-01-01 00:00:00) or previous employmentNav/startDate
+					IF ((vStartDate > tmpStartDate) AND nullEndDate = FALSE) THEN
+						SET tmpStartDate = vStartDate;																
+						SET vEmpAr = i;
 					END IF;
 
 					-- Check if any Global Assignment exist and is active, if active, then it is this employmentNav to use and all others can be ignored
@@ -142,60 +129,60 @@ CREATE COMPUTE MODULE ProcessEmployee
 				SET i = i +1;	
 			END WHILE;				
 			
-			IF (globAssign = TRUE) THEN -- Global Assignment is active - Allowed - log as info
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
-												   'Info',
+			-- Filter out employees that is not new hires or do not have have employmentStatus 'Terminated' in table EmpEmployment
+			IF (Environment.tmp.Employment.employmentStatus <> 'Terminated') THEN
+				SET vFilter = TRUE;
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
+												   'Filter',
 												   'PerPerson',
 												   'personIdExternal',
 												   inRef.personIdExternal,
-												   'employmentNav',
-												   'Global Assignment is active->Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
-												   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);				
-			ELSE -- If several employmentNav - Allowed - log as info
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
-												   'Info',
-												   'PerPerson',
-												   'personIdExternal',
-												   inRef.personIdExternal,
-												   'employmentNav',
-												   'Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
-												   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);
+												   'EmpEmployment',
+												   'Current employee in table EmpEmployment has employmentStatus: ' || Environment.tmp.Employment.employmentStatus || '. We only fetch new future hires (employees that does not exist in HRDB) or future rehires (employmentStatus = ''Terminated'' in table EmpEmployment)');							
+			ELSE		
+				IF (globAssign = TRUE) THEN -- Global Assignment is active - Allowed - log as info
+					CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
+													   'Info',
+													   'PerPerson',
+													   'personIdExternal',
+													   inRef.personIdExternal,
+													   'employmentNav',
+													   'Global Assignment is active->Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
+													   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);				
+				ELSE -- If several employmentNav - Allowed - log as info
+					CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
+													   'Info',
+													   'PerPerson',
+													   'personIdExternal',
+													   inRef.personIdExternal,
+													   'employmentNav',
+													   'Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
+													   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);
+				END IF;
 			END IF;
-		END IF;		
-	END;
-
-	CREATE PROCEDURE Filter(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vFilter BOOLEAN) BEGIN
-	
-		DECLARE vEndDateTS 		TIMESTAMP;
-		DECLARE vFilterTS 		TIMESTAMP;
-
-		-- Filter out employees with termination date older than 2020-01-01 00:00:00		
-		SET vEndDateTS = COALESCE(INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].endDate), CAST('9999-12-31 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss'));
-		SET vFilterTS = CAST('2020-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
-		
-		IF (vEndDateTS < vFilterTS) THEN
-			SET vFilter = TRUE;
-		END IF;
-		
-		-- Filter out Person ID External containing character _
-		IF CONTAINS(inRef.personIdExternal, '_') THEN
-			SET vFilter = TRUE;
-		END IF;
-				
+		ELSE
+					
+			-- Filter out employees that is not new hires or do not have have employmentStatus 'Terminated' in table EmpEmployment
+			IF (Environment.tmp.Employment.employmentStatus <> 'Terminated') THEN
+				SET vFilter = TRUE;
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
+												   'Filter',
+												   'PerPerson',
+												   'personIdExternal',
+												   inRef.personIdExternal,
+												   'EmpEmployment',
+												   'Current employee in table EmpEmployment has employmentStatus: ' || Environment.tmp.Employment.employmentStatus || '. We only fetch new future hires (employees that does not exist in HRDB) or future rehires (employmentStatus = ''Terminated'' in table EmpEmployment)');	
+									  		
+			END IF;		
+		END IF;	
 	END;
 
 	CREATE PROCEDURE ValidateAndLog(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vIgnore BOOLEAN) BEGIN
 		
-		DECLARE vtodayDate 	CHAR;
-		DECLARE todayDate	TIMESTAMP;
-		
-		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00';
-		SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
-		
 		-- Check if there are no jobInfoNav - Not allowed - Ignore and log			
 		IF (CARDINALITY(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item[]) = 0) THEN
 			SET vIgnore = TRUE;
-			CALL INT0080.COMMON.InsertSynchLog('Employee',
+			CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
 											   'Ignore',
 											   'PerPerson',
 											   'personIdExternal',
@@ -208,7 +195,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 		IF (vIgnore = FALSE) THEN
 			IF (CARDINALITY(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item[]) > 1) THEN
 				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
 												   'Ignore',
 												   'PerPerson',
 												   'personIdExternal',
@@ -222,7 +209,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 		IF (vIgnore = FALSE) THEN
 			IF (CARDINALITY(inRef.personalInfoNav[1].results.Item[]) > 1) THEN
 				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
 												   'Ignore',
 												   'PerPerson',
 												   'personIdExternal',
@@ -236,7 +223,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 		IF (vIgnore = FALSE) THEN	
 			IF (CARDINALITY(inRef.personalInfoNav.results.Item[]) = 0) THEN
 				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
 												   'Ignore',
 												   'PerPerson',
 												   'personIdExternal',
@@ -250,7 +237,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 		IF (vIgnore = FALSE) THEN		
 			IF (inRef.customString10 IS NULL OR inRef.customString10 = '') THEN
 				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
 												   'Ignore',
 												   'PerPerson',
 												   'personIdExternal',
@@ -264,7 +251,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 		IF (vIgnore = FALSE) THEN			
 			IF (inRef.employmentNav.results.Item[vEmpAr].userId IS NULL OR inRef.employmentNav.results.Item[vEmpAr].userId = '') THEN
 				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
 												   'Ignore',
 												   'PerPerson',
 												   'personIdExternal',
@@ -274,33 +261,6 @@ CREATE COMPUTE MODULE ProcessEmployee
 			END IF;
 		END IF;
 		
-		-- Possible future employee
-		IF (vIgnore = FALSE) THEN
-			IF (INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate) > todayDate) THEN
-				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
-												   'Ignore',
-												   'PerPerson',
-												   'personIdExternal',
-												   inRef.personIdExternal,
-												   'employmentNav',
-												   'StartDate is greater than present date, assuming it is a future employeee->employmentNav/startDate:' || CAST(INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate) AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'));					
-			END IF;
-		END IF;	
-		
-		-- Possible future employee
-		IF (vIgnore = FALSE) THEN
-			IF (INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate) > todayDate) THEN
-				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
-												   'Ignore',
-												   'PerPerson',
-												   'personIdExternal',
-												   inRef.personIdExternal,
-												   'jobInfoNav',
-												   'StartDate is greater than present date, assuming it is a future employeee->employmentNav/jobInfoNav/startDate:' || CAST(INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate) AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'));					
-			END IF;
-		END IF;			
 	END;
 
 	CREATE FUNCTION GetOrgunitId(IN department CHAR,
@@ -409,230 +369,13 @@ CREATE COMPUTE MODULE ProcessEmployee
 		END IF;
 	END;
 
-	CREATE PROCEDURE ProcessPerson(IN inRef REFERENCE,
-								   IN vEmpAr INT,
-								   IN vIgnore BOOLEAN,								   
-								   IN syncTime TIMESTAMP) BEGIN
-	
-		DECLARE personIdExternal	CHAR;
-		DECLARE initials 			CHAR;
-		DECLARE salutation 			CHAR;
-		DECLARE gender			 	CHAR;
-		DECLARE nationality 		CHAR;
-		DECLARE nativePrefLang 		CHAR;			
-		DECLARE dateOfBirth 		TIMESTAMP;
-		DECLARE cprNumberEncoded    CHAR;
-		DECLARE country 			CHAR;
-		DECLARE state				CHAR;	
-		DECLARE city 				CHAR;	
-		DECLARE zipCode 			CHAR;
-		DECLARE address1 			CHAR;
-		DECLARE address2 			CHAR;
-		DECLARE address3 			CHAR;
-		DECLARE address4 			CHAR;
-		DECLARE personalEmail		CHAR;
-		DECLARE privPhoneCtryCode	CHAR;
-		DECLARE privPhoneNbr		CHAR;						
-		DECLARE datbaseAction		CHAR;
-	
-		SET personIdExternal 		= TRIM(LEFT(inRef.personIdExternal, 32));
-	
-		IF (vIgnore = FALSE) THEN	
-		
-			SET initials 				= TRIM(LEFT(inRef.customString10, 128));		
-			SET salutation				= TRIM(LEFT(inRef.personalInfoNav.results.Item.salutationNav.externalCode, 256));		
-			SET gender					= TRIM(LEFT(inRef.personalInfoNav.results.Item.gender, 2));
-			SET nationality				= TRIM(LEFT(inRef.personalInfoNav.results.Item.nationality, 128));
-			SET nativePrefLang			= TRIM(LEFT(inRef.personalInfoNav.results.Item.nativePreferredLangNav.externalCode, 256));
-			SET dateOfBirth 			= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].userNav.dateOfBirth);
-			
-			IF ( inRef.nationalIdNav.results.Item.cardType = 'CPR' ) THEN
-				SET cprNumberEncoded = BASE64ENCODE(inRef.nationalIdNav.results.Item.nationalId);
-			END IF; 
-			
-			SET country					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.country, 256));
-			SET state					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.stateNav.externalCode, 256));
-			SET city					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.city, 256));
-			SET zipCode					= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.zipCode, 256));
-			SET address1				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address1, 256));
-			SET address2				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address2, 256));
-			SET address3				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address3, 256));
-			SET address4				= TRIM(LEFT(inRef.homeAddressNavDEFLT.results.Item.address4, 256));
-	
-			-- Get personalEmailAddress							          	   		 
-			SET personalEmail = TRIM(LEFT(LOWER(THE (SELECT ITEM fieldvalue(r.emailAddress)
-					   		  	  	     			 FROM inRef.emailNav.results.Item[] AS r
-						      	  	     			 WHERE r.emailTypeNav.externalCode = 'P')), 100));
-		      	  	     		
-			-- Get privatePhoneCountryCode
-			SET privPhoneCtryCode = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.countryCode)
-				          	   		 		   	   FROM inRef.phoneNav.results.Item[] AS r
-				          	   		   		   	   WHERE r.phoneTypeNav.externalCode = 'O'), 32));
-			
-			-- Get privatePhoneNumber
-			SET privPhoneNbr = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.phoneNumber)
-				          	   		 		  FROM inRef.phoneNav.results.Item[] AS r
-				          	   		   		  WHERE r.phoneTypeNav.externalCode = 'O'), 100));	          	   		   		   		 			      	  	
-			
-			-- Get current person in table Person
-			CALL GetCurrentPerson(personIdExternal);
-				
-			/* Check if insert new person information or update current person information or 
-			   just update lastSyncDate for a current person */
-			IF (CARDINALITY(Environment.tmp.Person[]) = 0) THEN
-				SET datbaseAction = 'Insert';
-			ELSEIF (COALESCE(initials, '') <> COALESCE(Environment.tmp.Person.initials, '') OR
-					COALESCE(salutation, '') <> COALESCE(Environment.tmp.Person.salutation, '') OR
-					COALESCE(gender, '') <> COALESCE(Environment.tmp.Person.gender, '') OR
-					COALESCE(nationality, '') <> COALESCE(Environment.tmp.Person.nationality, '') OR
-					COALESCE(nativePrefLang, '') <> COALESCE(Environment.tmp.Person.nativePreferredLanguage, '') OR
-					COALESCE(dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Person.dateOfBirth, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) OR
-					COALESCE(cprNumberEncoded, '') <> COALESCE(Environment.tmp.Person.cprNumber, '') OR
-					COALESCE(country, '') <> COALESCE(Environment.tmp.Person.country, '') OR
-					COALESCE(state, '') <> COALESCE(Environment.tmp.Person.state, '') OR
-					COALESCE(city, '') <> COALESCE(Environment.tmp.Person.city, '') OR
-					COALESCE(zipCode, '') <> COALESCE(Environment.tmp.Person.zipCode, '') OR
-					COALESCE(address1, '') <> COALESCE(Environment.tmp.Person.address1, '') OR
-					COALESCE(address2, '') <> COALESCE(Environment.tmp.Person.address2, '') OR
-					COALESCE(address3, '') <> COALESCE(Environment.tmp.Person.address3, '') OR
-					COALESCE(address4, '') <> COALESCE(Environment.tmp.Person.address4, '') OR
-					COALESCE(personalEmail, '') <> COALESCE(Environment.tmp.Person.personalEmail, '') OR
-					COALESCE(privPhoneCtryCode, '') <> COALESCE(Environment.tmp.Person.privatePhoneCountryCode, '') OR
-					COALESCE(privPhoneNbr, '') <> COALESCE(Environment.tmp.Person.privatePhoneNumber, '')) THEN
-				SET datbaseAction = 'Update';
-			ELSE 
-					UPDATE Database.dbo.{TBL_PERSON} AS T 
-					SET lastSyncDate = syncTime
-					WHERE T.personIdExternal = personIdExternal;
-					
-					COMMIT; -- Avoid long running locks
-			END IF;		
-			
-			IF (datbaseAction = 'Insert') THEN
-				INSERT INTO Database.dbo.EmpPerson(
-					  personIdExternal,
-					  initials,
-					  salutation,
-					  gender,
-					  nationality,
-					  nativePreferredLanguage,
-					  dateOfBirth,
-					  cprNumber,
-					  country,
-					  state,
-					  city,
-					  zipCode,
-					  address1,
-					  address2,
-					  address3,
-					  address4,
-					  personalEmail,
-					  privatePhoneCountryCode,
-					  privatePhoneNumber,
-					  recordLastUpdated,
-					  lastSyncDate)
-				VALUES (personIdExternal,	
-						initials,						
-						salutation,			
-						gender,					
-						nationality,		
-						nativePrefLang,				
-						dateOfBirth,
-						cprNumberEncoded,								
-						country,						
-						state,							
-						city,		
-						zipCode,													
-						address1,					
-						address2,												
-						address3,				
-						address4,				
-						personalEmail,													
-						privPhoneCtryCode,
-						privPhoneNbr,									
-						syncTime,	-- recordLastUpdated
-						syncTime);	-- lastSyncDate	
-				
-				COMMIT;
-				
-			ELSEIF (datbaseAction = 'Update') THEN
-				
-				UPDATE Database.dbo.{TBL_PERSON} AS T
-				SET personIdExternal 		= personIdExternal, 
-					initials 				= initials,
-					salutation 				= salutation,
-					gender 					= gender,
-					nationality 			= nationality,
-					nativePreferredLanguage	= nativePrefLang,
-					dateOfBirth				= dateOfBirth,
-					cprNumber               = cprNumberEncoded,
-					country					= country,
-					state					= state,
-					city					= city,
-					zipCode					= zipCode,
-					address1				= address1,
-					address2				= address2,
-					address3				= address3,
-					address4				= address4,
-					personalEmail 			= personalEmail,
-					privatePhoneCountryCode = privPhoneCtryCode,
-					privatePhoneNumber 		= privPhoneNbr,
-					recordLastUpdated 		= syncTime,
-					lastSyncDate 			= syncTime
-				WHERE T.personIdExternal = personIdExternal;
-					
-				COMMIT;		
-				
-			END IF;
-		
-		ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
-			
-			-- Get current person in table Person
-			CALL GetCurrentPerson(personIdExternal);
-			
-			IF (CARDINALITY(Environment.tmp.Person[]) > 0) THEN
-				UPDATE Database.dbo.{TBL_PERSON} AS T 
-				SET lastSyncDate = syncTime
-				WHERE T.personIdExternal = personIdExternal;
-						
-				COMMIT; -- Avoid long running locks
-						
-			END IF;
-		END IF;
-	END;	
 
-	CREATE PROCEDURE GetCurrentPerson(IN personIdExternal CHAR) BEGIN			
-		SET Environment.tmp.Person[] = 
-		SELECT  T.personIdExternal,
-				T.initials,
-				T.salutation,
-				T.gender,
-				T.nationality,
-				T.nativePreferredLanguage,
-				T.dateOfBirth,
-				T.cprNumber,
-				T.country,
-				T.zipCode,
-				T.address1,
-				T.address2,
-				T.address3,
-				T.address4,
-				T.city,
-				T.state,
-				T.personalEmail,
-				T.privatePhoneCountryCode,
-				T.privatePhoneNumber
-		FROM 	Database.dbo.{TBL_PERSON} AS T 
-		WHERE 	T.personIdExternal = personIdExternal;				
-	END;
-
-
-	CREATE PROCEDURE ProcessEmployment(IN inRef REFERENCE,
-								   	   IN vEmpAr INT,
-								   	   IN workerType CHAR,
-								   	   IN globAssign BOOLEAN,
-								   	   IN vIgnore BOOLEAN,
-								   	   IN syncTime TIMESTAMP) BEGIN
+	CREATE PROCEDURE ProcessEmploymentFuture(IN inRef REFERENCE,
+								   	   		 IN vEmpAr INT,
+								   	   		 IN workerType CHAR,
+								   	   		 IN globAssign BOOLEAN,
+								   	   		 IN vIgnore BOOLEAN,
+								   	   		 IN syncTime TIMESTAMP) BEGIN
 		
 		DECLARE userId					CHAR;
 		DECLARE personIdExternal		CHAR;
@@ -689,10 +432,11 @@ CREATE COMPUTE MODULE ProcessEmployee
 		DECLARE vtodayDate CHAR;
 		DECLARE todayDate TIMESTAMP;
 
-		SET vtodayDate 			= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00';
-		SET todayDate 			= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');		
-		
-		SET personIdExternal 	= TRIM(LEFT(inRef.personIdExternal, 32));
+		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00';
+		SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');		
+
+
+		SET personIdExternal = TRIM(LEFT(inRef.personIdExternal, 32));
 	
 		-- Get LastWorkingDay
 		IF (vIgnore = FALSE) THEN
@@ -772,7 +516,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 							 	WHEN TE.positionId is not null THEN 2
 							 	ELSE 1
 							 END as recordpriority
-						FROM EmpEmployment AS TE
+						FROM ' || TBL_EMPLOYMENT_FUTURE || ' AS TE
 						WHERE TE.personIdExternal = ?   
 					 	ORDER BY recordpriority DESC, recordFromDate DESC ' TO Database.HRDB VALUES (personIdExternal) ); 				
 
@@ -794,6 +538,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 				SET positionId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
 				SET positionName 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
 				SET positionEntryDate		= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionEntryDate);
+
 				SET orgUnitLevel1			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel1, 128));
 				SET orgUnitLevel2			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel2, 128));
 				SET orgUnitLevel3			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel3, 128));
@@ -823,6 +568,8 @@ CREATE COMPUTE MODULE ProcessEmployee
 			SET event = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.label)
 					   		  	  	   FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.eventNav.picklistLabels.results.Item[] AS r
 						      	 	   WHERE r.locale = 'en_US'), 255));
+						      	 	   
+			SET event = 'Future - ' || event;			      	 	   
 						      	  
 			-- Get businessEmail							          	   		 
 			SET businessEmail = TRIM(LEFT(LOWER(THE (SELECT ITEM fieldvalue(r.emailAddress)
@@ -849,74 +596,74 @@ CREATE COMPUTE MODULE ProcessEmployee
 				          	   		 		   		  FROM inRef.phoneNav.results.Item[] AS r
 				          	   		   		   		  WHERE r.phoneTypeNav.externalCode = 'B'), 100));
 	      	  	        	  		  					
-			-- Get current employee in table Employment
-			CALL GetCurrentEmpInEmployment(personIdExternal);	
+			-- Get current employee in table EmploymentFuture
+			CALL GetCurrentEmpInEmploymentFuture(personIdExternal);	
 			
 			-- Look for any differences on the record (and save which rule triggers mismatch for debugging purposes)
 			DECLARE firstMismatch CHAR '';
 				
-			IF     (COALESCE(userId, '') <> COALESCE(Environment.tmp.Employment.userId, '') ) THEN SET firstMismatch = 'userId'; 
-			ELSEIF (COALESCE(initials, '') <> COALESCE(Environment.tmp.Employment.initials, '') ) THEN SET firstMismatch = 'initials';
-			ELSEIF (COALESCE(firstName, '') <> COALESCE(Environment.tmp.Employment.firstName, '') ) THEN SET firstMismatch = 'firstName';
-			ELSEIF (COALESCE(lastName, '') <> COALESCE(Environment.tmp.Employment.lastName, '') ) THEN SET firstMismatch = 'lastName';
-			ELSEIF (COALESCE(companyCode, '') <> COALESCE(Environment.tmp.Employment.companyCode, '') ) THEN SET firstMismatch = 'companyCode';
-			ELSEIF (COALESCE(locationId, '') <> COALESCE(Environment.tmp.Employment.locationId, '') ) THEN SET firstMismatch = 'locationId';
-			ELSEIF (COALESCE(orgUnitId, '') <> COALESCE(Environment.tmp.Employment.orgUnitId, '') ) THEN SET firstMismatch = 'orgUnitId';
-			ELSEIF (COALESCE(department, '') <> COALESCE(Environment.tmp.Employment.department, '') ) THEN SET firstMismatch = 'department';
-			ELSEIF (COALESCE(division, '') <> COALESCE(Environment.tmp.Employment.division, '') ) THEN SET firstMismatch = 'division';
-			ELSEIF (COALESCE(payGrade, '') <> COALESCE(Environment.tmp.Employment.payGrade, '') ) THEN SET firstMismatch = 'payGrade';
-			ELSEIF (COALESCE(jobLevel, '') <> COALESCE(Environment.tmp.Employment.jobLevel, '') ) THEN SET firstMismatch = 'jobLevel';
-			ELSEIF (COALESCE(businessUnit, '') <> COALESCE(Environment.tmp.Employment.businessUnit, '') ) THEN SET firstMismatch = 'businessUnit';
-			ELSEIF (COALESCE(positionId, '') <> COALESCE(Environment.tmp.Employment.positionId, '') ) THEN SET firstMismatch = 'positionId';
-			ELSEIF (COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.Employment.costCenterId, '') ) THEN SET firstMismatch = 'costCenterId';
-			ELSEIF (COALESCE(employeeClass, '') <> COALESCE(Environment.tmp.Employment.employeeClass, '') ) THEN SET firstMismatch = 'employeeClass';
-			ELSEIF (COALESCE(employeeSubClass, '') <> COALESCE(Environment.tmp.Employment.employeeSubClass, '') ) THEN SET firstMismatch = 'employeeSubClass';
-			ELSEIF (COALESCE(employeeType, '') <> COALESCE(Environment.tmp.Employment.employeeType, '') ) THEN SET firstMismatch = 'employeeType';
-			ELSEIF (COALESCE(employmentType, '') <> COALESCE(Environment.tmp.Employment.employmentType, '') ) THEN SET firstMismatch = 'employmentType';
-			ELSEIF (COALESCE(employmentStatus, '') <> COALESCE(Environment.tmp.Employment.employmentStatus, '') ) THEN SET firstMismatch = 'employmentStatus';
-			ELSEIF (isManager <> Environment.tmp.Employment.isManager ) THEN SET firstMismatch = 'isManager';
-			ELSEIF (COALESCE(seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'seniorityDate';
-			ELSEIF (COALESCE(originalStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.originalStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'originalStartDate';
-			ELSEIF (COALESCE(recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'recruitDate';
-			ELSEIF (COALESCE(positionEntryDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.positionEntryDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'positionEntryDate';
-			ELSEIF (COALESCE(dateOfContractTerm, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.dateOfContractTermination, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'dateOfContractTermination';
-			ELSEIF (COALESCE(lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'lastDateWorked';
-			ELSEIF (CAST(COALESCE(standardHours, 99999)  AS CHAR FORMAT '##0.00' ) <> CAST(COALESCE(Environment.tmp.Employment.standardHours, 99999)  AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'standardHours';
-			ELSEIF (CAST(COALESCE(workingDaysPerWeek, 99999)  AS CHAR FORMAT '##0.00' ) <>  CAST(COALESCE(Environment.tmp.Employment.workingDaysPerWeek, 99999) AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'workingDaysPerWeek';
-			ELSEIF (CAST(COALESCE(fullTimeEquivalent, 99999)  AS CHAR FORMAT '##0.00' ) <>  CAST(COALESCE(Environment.tmp.Employment.fullTimeEquivalent, 99999) AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'fullTimeEquivalent';
-			ELSEIF (COALESCE(event, '') <> COALESCE(Environment.tmp.Employment.event, '') ) THEN SET firstMismatch = 'event';
-			ELSEIF (COALESCE(eventReason, '') <> COALESCE(Environment.tmp.Employment.eventReason, '') ) THEN SET firstMismatch = 'eventReason';
-			ELSEIF (COALESCE(eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'eventDate';
-			ELSEIF (COALESCE(businessEmail, '') <> COALESCE(Environment.tmp.Employment.businessEmail, '') ) THEN SET firstMismatch = 'businessEmail';
-			ELSEIF (COALESCE(businessMobCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessMobileCountryCode, '') ) THEN SET firstMismatch = 'businessMobileCountryCode';
-			ELSEIF (COALESCE(businessMobPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessMobilePhoneNumber, '') ) THEN SET firstMismatch = 'businessMobilePhoneNumber';
-			ELSEIF (COALESCE(businessLandCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessLandlineCountryCode, '') ) THEN SET firstMismatch = 'businessLandlineCountryCode';
-			ELSEIF (COALESCE(businessLandPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessLandlinePhoneNumber, '') ) THEN SET firstMismatch = 'businessLandlinePhoneNumber';
-			ELSEIF (COALESCE(buildingNumber, '') <> COALESCE(Environment.tmp.Employment.buildingNumber, '') ) THEN SET firstMismatch = 'buildingNumber';
-			ELSEIF (COALESCE(roomNumber, '') <> COALESCE(Environment.tmp.Employment.roomNumber, '') ) THEN SET firstMismatch = 'roomNumber';
-			ELSEIF (COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.Employment.managerUserId, '') ) THEN SET firstMismatch = 'managerUserId';
-			ELSEIF (COALESCE(positionName, '') <> COALESCE(Environment.tmp.Employment.positionName, '')) THEN SET firstMismatch = 'positionName';
-			ELSEIF (COALESCE(orgUnitLevel1, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel1, '') ) THEN SET firstMismatch = 'orgUnitLevel1';
-			ELSEIF (COALESCE(orgUnitLevel2, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel2, '') ) THEN SET firstMismatch = 'orgUnitLevel2';
-			ELSEIF (COALESCE(orgUnitLevel3, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel3, '') ) THEN SET firstMismatch = 'orgUnitLevel3';
-			ELSEIF (COALESCE(orgUnitLevel4, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel4, '') ) THEN SET firstMismatch = 'orgUnitLevel4';
-			ELSEIF (COALESCE(orgUnitLevel5, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel5, '') ) THEN SET firstMismatch = 'orgUnitLevel5';
-			ELSEIF (COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.Employment.orgUnitLevel6, '') ) THEN SET firstMismatch = 'orgUnitLevel6';
-			ELSEIF (COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.Employment.contingentWorkerAdminPositionId, '') ) THEN SET firstMismatch = 'contingentWorkerAdminPositionId';
-			ELSEIF (COALESCE(parentPositionId, '') <> COALESCE(Environment.tmp.Employment.parentPositionId, '') ) THEN SET firstMismatch = 'parentPositionId';
+			IF     (COALESCE(userId, '') <> COALESCE(Environment.tmp.EmploymentFuture.userId, '') ) THEN SET firstMismatch = 'userId'; 
+			ELSEIF (COALESCE(initials, '') <> COALESCE(Environment.tmp.EmploymentFuture.initials, '') ) THEN SET firstMismatch = 'initials';
+			ELSEIF (COALESCE(firstName, '') <> COALESCE(Environment.tmp.EmploymentFuture.firstName, '') ) THEN SET firstMismatch = 'firstName';
+			ELSEIF (COALESCE(lastName, '') <> COALESCE(Environment.tmp.EmploymentFuture.lastName, '') ) THEN SET firstMismatch = 'lastName';
+			ELSEIF (COALESCE(companyCode, '') <> COALESCE(Environment.tmp.EmploymentFuture.companyCode, '') ) THEN SET firstMismatch = 'companyCode';
+			ELSEIF (COALESCE(locationId, '') <> COALESCE(Environment.tmp.EmploymentFuture.locationId, '') ) THEN SET firstMismatch = 'locationId';
+			ELSEIF (COALESCE(orgUnitId, '') <> COALESCE(Environment.tmp.EmploymentFuture.orgUnitId, '') ) THEN SET firstMismatch = 'orgUnitId';
+			ELSEIF (COALESCE(department, '') <> COALESCE(Environment.tmp.EmploymentFuture.department, '') ) THEN SET firstMismatch = 'department';
+			ELSEIF (COALESCE(division, '') <> COALESCE(Environment.tmp.EmploymentFuture.division, '') ) THEN SET firstMismatch = 'division';
+			ELSEIF (COALESCE(payGrade, '') <> COALESCE(Environment.tmp.EmploymentFuture.payGrade, '') ) THEN SET firstMismatch = 'payGrade';
+			ELSEIF (COALESCE(jobLevel, '') <> COALESCE(Environment.tmp.EmploymentFuture.jobLevel, '') ) THEN SET firstMismatch = 'jobLevel';
+			ELSEIF (COALESCE(businessUnit, '') <> COALESCE(Environment.tmp.EmploymentFuture.businessUnit, '') ) THEN SET firstMismatch = 'businessUnit';
+			ELSEIF (COALESCE(positionId, '') <> COALESCE(Environment.tmp.EmploymentFuture.positionId, '') ) THEN SET firstMismatch = 'positionId';
+			ELSEIF (COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.EmploymentFuture.costCenterId, '') ) THEN SET firstMismatch = 'costCenterId';
+			ELSEIF (COALESCE(employeeClass, '') <> COALESCE(Environment.tmp.EmploymentFuture.employeeClass, '') ) THEN SET firstMismatch = 'employeeClass';
+			ELSEIF (COALESCE(employeeSubClass, '') <> COALESCE(Environment.tmp.EmploymentFuture.employeeSubClass, '') ) THEN SET firstMismatch = 'employeeSubClass';
+			ELSEIF (COALESCE(employeeType, '') <> COALESCE(Environment.tmp.EmploymentFuture.employeeType, '') ) THEN SET firstMismatch = 'employeeType';
+			ELSEIF (COALESCE(employmentType, '') <> COALESCE(Environment.tmp.EmploymentFuture.employmentType, '') ) THEN SET firstMismatch = 'employmentType';
+			ELSEIF (COALESCE(employmentStatus, '') <> COALESCE(Environment.tmp.EmploymentFuture.employmentStatus, '') ) THEN SET firstMismatch = 'employmentStatus';
+			ELSEIF (isManager <> Environment.tmp.EmploymentFuture.isManager ) THEN SET firstMismatch = 'isManager';
+			ELSEIF (COALESCE(seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.EmploymentFuture.seniorityDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'seniorityDate';
+			ELSEIF (COALESCE(originalStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.EmploymentFuture.originalStartDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'originalStartDate';
+			ELSEIF (COALESCE(recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.EmploymentFuture.recruitDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'recruitDate';
+			ELSEIF (COALESCE(positionEntryDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.EmploymentFuture.positionEntryDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'positionEntryDate';
+			ELSEIF (COALESCE(dateOfContractTerm, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.EmploymentFuture.dateOfContractTermination, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'dateOfContractTermination';
+			ELSEIF (COALESCE(lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.EmploymentFuture.lastDateWorked, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'lastDateWorked';
+			ELSEIF (CAST(COALESCE(standardHours, 99999)  AS CHAR FORMAT '##0.00' ) <> CAST(COALESCE(Environment.tmp.EmploymentFuture.standardHours, 99999)  AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'standardHours';
+			ELSEIF (CAST(COALESCE(workingDaysPerWeek, 99999)  AS CHAR FORMAT '##0.00' ) <>  CAST(COALESCE(Environment.tmp.EmploymentFuture.workingDaysPerWeek, 99999) AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'workingDaysPerWeek';
+			ELSEIF (CAST(COALESCE(fullTimeEquivalent, 99999)  AS CHAR FORMAT '##0.00' ) <>  CAST(COALESCE(Environment.tmp.EmploymentFuture.fullTimeEquivalent, 99999) AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'fullTimeEquivalent';
+			ELSEIF (COALESCE(event, '') <> COALESCE(Environment.tmp.EmploymentFuture.event, '') ) THEN SET firstMismatch = 'event';
+			ELSEIF (COALESCE(eventReason, '') <> COALESCE(Environment.tmp.EmploymentFuture.eventReason, '') ) THEN SET firstMismatch = 'eventReason';
+			ELSEIF (COALESCE(eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.EmploymentFuture.eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'eventDate';
+			ELSEIF (COALESCE(businessEmail, '') <> COALESCE(Environment.tmp.EmploymentFuture.businessEmail, '') ) THEN SET firstMismatch = 'businessEmail';
+			ELSEIF (COALESCE(businessMobCtryCode, '') <> COALESCE(Environment.tmp.EmploymentFuture.businessMobileCountryCode, '') ) THEN SET firstMismatch = 'businessMobileCountryCode';
+			ELSEIF (COALESCE(businessMobPhoneNbr, '') <> COALESCE(Environment.tmp.EmploymentFuture.businessMobilePhoneNumber, '') ) THEN SET firstMismatch = 'businessMobilePhoneNumber';
+			ELSEIF (COALESCE(businessLandCtryCode, '') <> COALESCE(Environment.tmp.EmploymentFuture.businessLandlineCountryCode, '') ) THEN SET firstMismatch = 'businessLandlineCountryCode';
+			ELSEIF (COALESCE(businessLandPhoneNbr, '') <> COALESCE(Environment.tmp.EmploymentFuture.businessLandlinePhoneNumber, '') ) THEN SET firstMismatch = 'businessLandlinePhoneNumber';
+			ELSEIF (COALESCE(buildingNumber, '') <> COALESCE(Environment.tmp.EmploymentFuture.buildingNumber, '') ) THEN SET firstMismatch = 'buildingNumber';
+			ELSEIF (COALESCE(roomNumber, '') <> COALESCE(Environment.tmp.EmploymentFuture.roomNumber, '') ) THEN SET firstMismatch = 'roomNumber';
+			ELSEIF (COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.EmploymentFuture.managerUserId, '') ) THEN SET firstMismatch = 'managerUserId';
+			ELSEIF (COALESCE(positionName, '') <> COALESCE(Environment.tmp.EmploymentFuture.positionName, '')) THEN SET firstMismatch = 'positionName';
+			ELSEIF (COALESCE(orgUnitLevel1, '') <> COALESCE(Environment.tmp.EmploymentFuture.orgUnitLevel1, '') ) THEN SET firstMismatch = 'orgUnitLevel1';
+			ELSEIF (COALESCE(orgUnitLevel2, '') <> COALESCE(Environment.tmp.EmploymentFuture.orgUnitLevel2, '') ) THEN SET firstMismatch = 'orgUnitLevel2';
+			ELSEIF (COALESCE(orgUnitLevel3, '') <> COALESCE(Environment.tmp.EmploymentFuture.orgUnitLevel3, '') ) THEN SET firstMismatch = 'orgUnitLevel3';
+			ELSEIF (COALESCE(orgUnitLevel4, '') <> COALESCE(Environment.tmp.EmploymentFuture.orgUnitLevel4, '') ) THEN SET firstMismatch = 'orgUnitLevel4';
+			ELSEIF (COALESCE(orgUnitLevel5, '') <> COALESCE(Environment.tmp.EmploymentFuture.orgUnitLevel5, '') ) THEN SET firstMismatch = 'orgUnitLevel5';
+			ELSEIF (COALESCE(orgUnitLevel6, '') <> COALESCE(Environment.tmp.EmploymentFuture.orgUnitLevel6, '') ) THEN SET firstMismatch = 'orgUnitLevel6';
+			ELSEIF (COALESCE(contWrkAdmPositionId, '') <> COALESCE(Environment.tmp.EmploymentFuture.contingentWorkerAdminPositionId, '') ) THEN SET firstMismatch = 'contingentWorkerAdminPositionId';
+			ELSEIF (COALESCE(parentPositionId, '') <> COALESCE(Environment.tmp.EmploymentFuture.parentPositionId, '') ) THEN SET firstMismatch = 'parentPositionId';
 			END IF;
 			 
 			/* Check if insert new employee information or update current employee information or 
 			   just update lastSyncDate for a current employee */
 			   	-- We don't want to update fields derived by positionNav after termination (position can be reused and fields can change)
-			IF (CARDINALITY(Environment.tmp.Employment[]) = 0) THEN
+			IF (CARDINALITY(Environment.tmp.EmploymentFuture[]) = 0) THEN
 				SET datbaseAction = 'Insert';
 			ELSEIF  ( firstMismatch <> '') THEN 
 				SET datbaseAction = 'Update';
 				-- For debugging purposes:
 				SET Environment.firstMismatch = firstMismatch; 					
 			ELSE -- Update existing record with a lastSyncDate
-				UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+				UPDATE Database.dbo.{TBL_EMPLOYMENT_FUTURE} AS T 
 				SET lastSyncDate = syncTime
 				WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
 				
@@ -928,66 +675,66 @@ CREATE COMPUTE MODULE ProcessEmployee
 			IF (datbaseAction = 'Insert' OR datbaseAction = 'Update') THEN
 				
 				IF (datbaseAction = 'Update') THEN
-					UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+					UPDATE Database.dbo.{TBL_EMPLOYMENT_FUTURE} AS T 
 					SET recordToDate = syncTime
 					WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
 					
 					COMMIT; -- Avoid long running locks
 				END IF;
 	
-				INSERT INTO Database.dbo.{TBL_EMPLOYMENT}(userId,
-												   		  personIdExternal,
-												   		  initials,
-												   		  firstName,
-									  					  lastName,
-												   		  companyCode,
-												   		  locationId,
-												   		  orgUnitId,
-												   		  department,
-												   		  division,
-												   		  payGrade,
-												   		  jobLevel,
-												   		  businessUnit,
-												   		  orgUnitLevel1,
-												   		  orgUnitLevel2,
-												   		  orgUnitLevel3,
-												   		  orgUnitLevel4,
-												   		  orgUnitLevel5,
-												   		  orgUnitLevel6,
-												   		  positionId,
-												   		  positionName,
-												   		  costCenterId,
-												   		  employeeClass,
-												   		  employeeSubClass,
-												   		  employeeType,
-												   		  employmentType,
-												   		  employmentStatus,
-												   		  standardHours,
-												   		  workingDaysPerWeek,
-												   		  fullTimeEquivalent,
-												   		  seniorityDate,
-												   		  originalStartDate,
-												   		  recruitDate,
-												   		  positionEntryDate,
-												   		  lastDateWorked,
-												   		  dateOfContractTermination,
-												   		  event,
-												   		  eventReason,
-												   		  eventDate,
-												   		  isManager,
-												   		  businessEmail,
-												   		  businessMobileCountryCode,
-												   		  businessMobilePhoneNumber,
-												   		  businessLandlineCountryCode,
-												   		  businessLandlinePhoneNumber,
-												   		  buildingNumber,
-												   		  roomNumber,
-												   		  managerUserId,
-												   		  contingentWorkerAdminPositionId,
-												   		  parentPositionId,								   		  
-												   		  recordFromDate,
-												   		  recordToDate,
-												   		  lastSyncDate)
+				INSERT INTO Database.dbo.{TBL_EMPLOYMENT_FUTURE}(userId,
+													   		  personIdExternal,
+													   		  initials,
+													   		  firstName,
+										  					  lastName,
+													   		  companyCode,
+													   		  locationId,
+													   		  orgUnitId,
+													   		  department,
+													   		  division,
+													   		  payGrade,
+													   		  jobLevel,
+													   		  businessUnit,
+													   		  orgUnitLevel1,
+													   		  orgUnitLevel2,
+													   		  orgUnitLevel3,
+													   		  orgUnitLevel4,
+													   		  orgUnitLevel5,
+													   		  orgUnitLevel6,
+													   		  positionId,
+													   		  positionName,
+													   		  costCenterId,
+													   		  employeeClass,
+													   		  employeeSubClass,
+													   		  employeeType,
+													   		  employmentType,
+													   		  employmentStatus,
+													   		  standardHours,
+													   		  workingDaysPerWeek,
+													   		  fullTimeEquivalent,
+													   		  seniorityDate,
+													   		  originalStartDate,
+													   		  recruitDate,
+													   		  positionEntryDate,
+													   		  lastDateWorked,
+													   		  dateOfContractTermination,
+													   		  event,
+													   		  eventReason,
+													   		  eventDate,
+													   		  isManager,
+													   		  businessEmail,
+													   		  businessMobileCountryCode,
+													   		  businessMobilePhoneNumber,
+													   		  businessLandlineCountryCode,
+													   		  businessLandlinePhoneNumber,
+													   		  buildingNumber,
+													   		  roomNumber,
+													   		  managerUserId,
+													   		  contingentWorkerAdminPositionId,
+													   		  parentPositionId,								   		  
+													   		  recordFromDate,
+													   		  recordToDate,
+													   		  lastSyncDate)
 							VALUES (userId,				
 									personIdExternal,
 									initials,
@@ -1024,8 +771,8 @@ CREATE COMPUTE MODULE ProcessEmployee
 						   		    positionEntryDate,
 									lastDateWorked,
 									dateOfContractTerm,
-									TRIM(event),
-									TRIM(eventReason),
+									event,
+									eventReason,
 									eventDate,
 									isManager,
 									businessEmail,
@@ -1043,30 +790,22 @@ CREATE COMPUTE MODULE ProcessEmployee
 									syncTime);				--lastSyncDate	
 
 				COMMIT; -- Avoid long running locks
-				
-				-- Delete a future hire (if exists) from table EmpEmploymentFuture since now added in table EmpEmployment
-				DELETE FROM Database.dbo.{TBL_EMPLOYMENT_FUTURE} AS T
-				WHERE T.personIdExternal = personIdExternal;
-				
-				COMMIT; -- Avoid long running locks
-				
-				
 			END IF; 				          	   		         	        
 		 ELSEIF (vIgnore = TRUE) THEN -- Update lastSyncDate even if any other update should be ignored
 			
 			 --Get current employee in table Employment
-			 CALL GetCurrentEmpInEmployment(personIdExternal);
+			 CALL GetCurrentEmpInEmploymentFuture(personIdExternal);
 			
-			 IF (CARDINALITY(Environment.tmp.Employment[]) > 0) THEN
-				UPDATE Database.dbo.{TBL_EMPLOYMENT} AS T 
+			 IF (CARDINALITY(Environment.tmp.EmploymentFuture[]) > 0) THEN
+				UPDATE Database.dbo.{TBL_EMPLOYMENT_FUTURE} AS T 
 				SET lastSyncDate = syncTime
 				WHERE T.personIdExternal = personIdExternal AND T.recordToDate IS NULL;
 			 END IF;
 		 END IF;
 	END;
 
-	CREATE PROCEDURE GetCurrentEmpInEmployment(IN personIdExternal CHAR) BEGIN			
-		SET Environment.tmp.Employment[] = 
+	CREATE PROCEDURE GetCurrentEmpInEmploymentFuture(IN personIdExternal CHAR) BEGIN			
+		SET Environment.tmp.EmploymentFuture[] = 
 		SELECT  T.userId,
 				T.personIdExternal,
 				T.initials,
@@ -1117,11 +856,22 @@ CREATE COMPUTE MODULE ProcessEmployee
 				T.managerUserId,
 				T.contingentWorkerAdminPositionId,
       			T.parentPositionId
-		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
+		FROM 	Database.dbo.{TBL_EMPLOYMENT_FUTURE} AS T 
 		WHERE 	T.personIdExternal = personIdExternal AND 
 				T.recordTodate IS NULL;					
 	END;
-	
+
+	CREATE PROCEDURE GetCurrentEmpInEmployment(IN personIdExternal CHAR) BEGIN			
+		SET Environment.tmp.Employment[] = 
+		SELECT  T.userId,
+				T.personIdExternal,
+				T.initials,
+				T.employmentStatus
+		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
+		WHERE 	T.personIdExternal = personIdExternal AND 
+				T.recordTodate IS NULL;					
+	END;	
 	
 END MODULE;								  	  				
+
 

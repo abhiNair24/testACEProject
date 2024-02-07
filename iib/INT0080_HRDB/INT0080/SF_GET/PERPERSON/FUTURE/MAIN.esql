@@ -1,49 +1,43 @@
-BROKER SCHEMA INT0080.SF_GET.PERPERSON
+BROKER SCHEMA INT0080.SF_GET.PERPERSON.FUTURE
 -- $MQSI_VERSION=$Id$MQSI$
 -- $MQSI ESQL=$URL$MQSI$
 
 -- Working tables
-DECLARE TBL_SYNCH_LOG CONSTANT CHARACTER 'SynchODdataLog';
-		
-CREATE COMPUTE MODULE GetPerPerson
+DECLARE TBL_SYNCH_LOG CONSTANT CHARACTER 'synchODdataLog';
 
+CREATE COMPUTE MODULE GetPerPersonFutureList
 	CREATE FUNCTION Main() RETURNS BOOLEAN
 	BEGIN
 		DECLARE countReq	INT 1;
 		DECLARE sqlc 		CHAR;
 		DECLARE vHost 		CHAR;
-		DECLARE personIdExternalFilter CHAR;
 		DECLARE trigList	ROW;
 		
 		-- Extract source trigger list
 		SET trigList.list.parm[] = EVAL('LIST{' || InputRoot.XMLNSC.TriggerMsg.TriggerId || '}');
-		
-		-- If third parm provided - run for this personIdExternal only
-		SET personIdExternalFilter = trigList.list.parm[3];		
-		
+					
 		-- Clean up synch table
-		SET sqlc = 'DELETE FROM ' || TBL_SYNCH_LOG || ' WHERE TYPE = ''Employee''';	
+		SET sqlc = 'DELETE FROM ' || TBL_SYNCH_LOG || ' WHERE TYPE = ''FutureEmployee''';	
 		PASSTHRU(sqlc);
-
-		COMMIT; -- Avoid long running locks; Enfore new commit scope after DDL and table locks
+		PASSTHRU('COMMIT;');		
 		
 		-- Get URL
-		SET vHost = Environment.Conn.URL; 
+		SET vHost = Environment.Conn.URL; 	
 		
 		-- Set Environment start values
 		SET Environment.SF.Meta.hasMore 	= true;
 		SET Environment.SF.Meta.firstRun 	= true;
 		SET Environment.SF.Meta.syncTime    = CURRENT_TIMESTAMP; 
 						
- 		WHILE (Environment.SF.Meta.hasMore = true AND countReq <= 100) DO
+		WHILE (Environment.SF.Meta.hasMore = true AND countReq <= 100) DO
 		
-			SET OutputRoot.Properties.CodedCharSetId 			= 1208;	
-			SET OutputRoot.HTTPRequestHeader."Authorization" = Environment.Conn.AuthHeader;				
-		
+			SET OutputRoot.Properties.CodedCharSetId 			= 1208;						
+			SET OutputRoot.HTTPRequestHeader."Authorization" = Environment.Conn.AuthHeader;	
+			
 			-- If first run, then run query, else run queryMore
 			IF Environment.SF.Meta.firstRun = true THEN
-				SET Environment.SF.Meta.RequestURL = GetQPerPerson(vHost, personIdExternalFilter);					
-				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = Environment.SF.Meta.RequestURL;				
+				SET Environment.SF.Meta.RequestURL = GetQPerPersonFutureList(vHost);
+				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = GetQPerPersonFutureList(vHost);				
 			ELSEIF Environment.SF.Meta.firstRun = false THEN
 				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = Environment.SF.Meta.Next;		
 			END IF;
@@ -52,52 +46,149 @@ CREATE COMPUTE MODULE GetPerPerson
 		
 			SET countReq = countReq + 1;	
 		END WHILE;	
-		
-		SET OutputRoot.Properties = InputRoot.Properties;
-		
-		-- ABILITY TO TRIGGER POSITION UPDATE REMOVED SINCE TABLE DELETED
-		-- Only run sequencial if it is a trigger message containing that param
-		-- IF (trigList.list.parm[2] = 'Sequential') THEN			
-		--	SET OutputRoot = InputRoot;
-		--	PROPAGATE TO TERMINAL 'out1';		
-		-- END IF;	
-		
-		SET OutputRoot.XMLNSC.EmployeeFuture.Info =  'All employees sent successfully to queue INT0080.PROCESS.EMPLOYEE';
-		PROPAGATE TO TERMINAL 'out1';		
 									
 		RETURN FALSE;
 	END;
 
-	CREATE FUNCTION GetQPerPerson(IN vHost CHAR, IN personIdExternalFilter CHAR
-	) RETURNS CHAR BEGIN			 		
+	CREATE FUNCTION GetQPerPersonFutureList(IN vHost CHAR) RETURNS CHAR BEGIN			 		
 		
 		DECLARE vObject CHAR 'PerPerson';
+		DECLARE vFilter CHAR '$filter=';
 		DECLARE vSelect CHAR '$select=';
 		DECLARE vExpand CHAR '$expand=';
 		DECLARE vPaging CHAR 'paging=snapshot';
-		DECLARE vFilter CHAR '';	
+		DECLARE vCustom CHAR 'customPageSize=1000';		
+		DECLARE vFormat CHAR '$format=json';	
+		DECLARE startDateGt CHAR;
+		DECLARE startDateLt CHAR;
+		DECLARE futureDate CHAR;
+		
+		-- Todays date (greater than) to get list of future employees
+		SET startDateGt = CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd');
+
+		-- Filter
+		SET vFilter = vFilter || 'employmentNav/startDate gt ' || '''' || startDateGt || '''';
+		
+		-- Select
+		SET vSelect = vSelect || 'personIdExternal,';
+		SET vSelect = vSelect || 'customString10,';						
+		SET vSelect = vSelect || 'employmentNav/startDate,';
+		SET vSelect = vSelect || 'employmentNav/endDate,';
+		SET vSelect = vSelect || 'employmentNav/seniorityDate,';
+		SET vSelect = vSelect || 'employmentNav/lastDateWorked,';
+				
+		-- Expand	
+		SET vExpand = vExpand || 'employmentNav';
+			
+		
+		RETURN vHost || vObject || '?' || vFilter || '&' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
+		
+	END;
+END MODULE;
+
+CREATE COMPUTE MODULE GetSinglePerPersonFuture
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE vHost CHAR;
+		DECLARE resultCount INT;
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data.d.results.Item;
+		
+		SET resultCount = CARDINALITY(InputRoot.JSON.Data.d.results.Item[]);
+		
+		IF (resultCount > 0) THEN
+			WHILE LASTMOVE(inRef) DO
+				--DECLARE vIgnore BOOLEAN FALSE;
+				DECLARE vEmpAr INT 1;
+				DECLARE workerType CHAR;
+				DECLARE employmentType CHAR;						
+	
+				-- Incase of error then easier to identify which row that was in error
+				SET Environment.Initials = inRef.customString10;
+				SET Environment.personIdExternal = inRef.personIdExternal;
+				
+				-- Get correct employmentNav array		
+				CALL GetEmploymentNav(inRef, vEmpAr);
+				
+				-- Get URL
+				SET vHost = Environment.Conn.URL;
+				
+				SET OutputRoot.Properties.CodedCharSetId = 1208;						
+				SET OutputRoot.HTTPRequestHeader."Authorization" = Environment.Conn.AuthHeader;	
+				
+				SET OutputLocalEnvironment.Destination.HTTP.RequestURL = GetSingleQPerPersonFuture(vHost, inRef.personIdExternal, inRef.employmentNav.results.Item[vEmpAr].startDate);		
+				
+				PROPAGATE TO TERMINAL 'out';
+								
+				MOVE inRef NEXTSIBLING REPEAT TYPE NAME;	
+			END WHILE;			
+		ELSE
+			SET OutputRoot.Properties = InputRoot.Properties;
+			SET OutputRoot.XMLNSC.Employee.Info = 'No data found in input message.';			
+			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
+			PROPAGATE TO TERMINAL 'out1';
+		END IF;
+		
+		SET OutputRoot.Properties = InputRoot.Properties;
+		SET OutputRoot.XMLNSC.EmployeeFuture.Info = CAST(resultCount AS CHARACTER) || ' potential future employees sent successfully to queue INT0080.PROCESS.EMPLOYEE.FUTURE';
+		PROPAGATE TO TERMINAL 'out2';							
+		RETURN FALSE;
+	END;
+
+	CREATE PROCEDURE GetEmploymentNav(IN inRef REFERENCE, INOUT vEmpAr INT) BEGIN
+			DECLARE nbrEmpNav INT;
+			DECLARE tmpStartDate TIMESTAMP;
+			DECLARE vStartDate TIMESTAMP;
+			DECLARE vEndDate TIMESTAMP;
+			DECLARE i INT 1;
+								
+			SET nbrEmpNav 	= CARDINALITY(inRef.employmentNav.results.Item[]);
+
+			-- Get active employmentNav
+			IF (nbrEmpNav > 1) THEN		
+				DECLARE nullEndDate BOOLEAN FALSE;
+				
+				SET tmpStartDate = CAST('1970-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
+				
+				WHILE(nbrEmpNav >= i) DO
+
+					SET vStartDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].startDate);
+					SET vEndDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].endDate);
+																	
+					-- If employmentNav/endDate is null, then we assume this is the active record, even if another employmentNav/startDate is newer
+					IF (vEndDate IS NULL) THEN
+						SET nullEndDate = TRUE;
+						SET vEmpAr = i;
+					END IF;							
+					
+					-- employmentNav/startDate must be > than set start date(1970-01-01 00:00:00) or previous employmentNav/startDate
+					IF ((vStartDate > tmpStartDate) AND nullEndDate = FALSE) THEN
+						SET tmpStartDate = vStartDate;																
+						SET vEmpAr = i;
+					END IF;
+										
+					SET i = i +1;	
+				END WHILE;								
+			END IF;		
+	END;
+
+	CREATE FUNCTION GetSingleQPerPersonFuture(IN vHost CHAR, IN personIdExternal CHAR, IN asOfDate CHAR) RETURNS CHAR BEGIN			 		
+		DECLARE vObject CHAR 'PerPerson';
+		DECLARE vFilter CHAR '$filter=';
+		DECLARE vSelect CHAR '$select=';
+		DECLARE vExpand CHAR '$expand=';
+		DECLARE vPaging CHAR 'paging=snapshot';
 		DECLARE vCustom CHAR 'customPageSize=1000';		
 		DECLARE vFormat CHAR '$format=json';
+		DECLARE vAsOfDate CHAR 'asOfDate=';	
+		
+		-- Filter
+		SET vFilter = vFilter || 'personIdExternal eq ' || '''' || personIdExternal || '''';
 		
 		-- Select
 		SET vSelect = vSelect || 'personIdExternal,';
 		SET vSelect = vSelect || 'customString10,';
 		SET vSelect = vSelect || 'personalInfoNav/displayName,';
 		SET vSelect = vSelect || 'personalInfoNav/lastName,';
-		SET vSelect = vSelect || 'personalInfoNav/gender,';
-		SET vSelect = vSelect || 'personalInfoNav/nationality,';		
-		SET vSelect = vSelect || 'personalInfoNav/salutationNav/externalCode,';
-		SET vSelect = vSelect || 'personalInfoNav/nativePreferredLangNav/externalCode,';
-		SET vSelect = vSelect || 'nationalIdNav/nationalId,';
-		SET vSelect = vSelect || 'nationalIdNav/cardType,';	
-		SET vSelect = vSelect || 'homeAddressNavDEFLT/country,';
-		SET vSelect = vSelect || 'homeAddressNavDEFLT/zipCode,';				
-		SET vSelect = vSelect || 'homeAddressNavDEFLT/address1,';
-		SET vSelect = vSelect || 'homeAddressNavDEFLT/address2,';
-		SET vSelect = vSelect || 'homeAddressNavDEFLT/address3,';
-		SET vSelect = vSelect || 'homeAddressNavDEFLT/address4,';			
-		SET vSelect = vSelect || 'homeAddressNavDEFLT/city,';
-		SET vSelect = vSelect || 'homeAddressNavDEFLT/stateNav/externalCode,';	
 		SET vSelect = vSelect || 'emailNav/emailAddress,';
 		SET vSelect = vSelect || 'emailNav/emailTypeNav/externalCode,';
 		SET vSelect = vSelect || 'phoneNav/countryCode,';
@@ -184,16 +275,28 @@ CREATE COMPUTE MODULE GetPerPerson
 		SET vExpand = vExpand || 'employmentNav/userNav,';
 		SET vExpand = vExpand || 'employmentNav/workOrderNav,';
 		SET vExpand = vExpand || 'employmentNav/workOrderNav/workerTypeNav';	
-	
-		IF personIdExternalFilter is not NULL THEN
-			SET vFilter = '$filter=personIdExternal+eq+''' || personIdExternalFilter || '''&';
-		END IF;
-	
-		RETURN vHost || vObject || '?' || vFilter || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
+
+		-- asOfDate
+		SET vAsOfDate = vAsOfDate || CAST(INT0080.COMMON.GetSFTimeStamp(asOfDate) AS CHAR FORMAT 'yyyy-MM-dd');
 		
-		--RETURN vHost || vObject || '?' || '$filter=personIdExternal eq ''882609''&' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
+		RETURN vHost || vObject || '?' || vFilter || '&' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging || '&' || vAsOfDate;
+		
 	END;
- 
-	
 END MODULE;
 
+CREATE COMPUTE MODULE PropagateJsonMessage
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		SET OutputRoot.Properties = InputRoot.Properties;
+		
+		-- To be able to set the same lastSyncDate for all rows updated by one trigger msg
+		SET OutputRoot.MQRFH2.usr.syncTime = Environment.SF.Meta.syncTime;		
+		
+		-- Propagate message
+		CREATE LASTCHILD OF OutputRoot DOMAIN 'JSON' NAME 'JSON';
+		SET OutputRoot.JSON = InputRoot.JSON;
+		
+		RETURN TRUE;
+	END;
+END MODULE;

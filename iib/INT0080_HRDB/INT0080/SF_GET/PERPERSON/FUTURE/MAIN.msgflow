@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ComIbmCompute.msgnode="ComIbmCompute.msgnode" xmlns:ComIbmMQInput.msgnode="ComIbmMQInput.msgnode" xmlns:ComIbmMQOutput.msgnode="ComIbmMQOutput.msgnode" xmlns:ComIbmWSRequest.msgnode="ComIbmWSRequest.msgnode" xmlns:ICC_FRMWRK_ICC0001_MQ_INPUT_LOGGING.subflow="ICC/FRMWRK/ICC0001_MQ_INPUT_LOGGING.subflow" xmlns:ICC_FRMWRK_ICC0007_NO_OUTPUT_LOGGING.subflow="ICC/FRMWRK/ICC0007_NO_OUTPUT_LOGGING.subflow" xmlns:ICC_FRMWRK_ICC0010_THROW_HTTP_EXCEPTION.subflow="ICC/FRMWRK/ICC0010_THROW_HTTP_EXCEPTION.subflow"
+    xmlns:ICC_FRMWRK_ICC0018_LOG.subflow="ICC/FRMWRK/ICC0018_LOG.subflow" xmlns:INT0080_COMMON_GET_CONN_SF.subflow="INT0080/COMMON/GET_CONN_SF.subflow" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:eflow="http://www.ibm.com/wbi/2005/eflow" xmlns:utility="http://www.ibm.com/wbi/2005/eflow_utility" nsURI="INT0080/SF_GET/PERPERSON/FUTURE/MAIN.msgflow" nsPrefix="INT0080_SF_GET_PERPERSON_FUTURE_MAIN.msgflow">
+  <eClassifiers xmi:type="eflow:FCMComposite" name="FCMComposite_1" nodeLayoutStyle="SQUARE">
+    <eSuperTypes href="http://www.ibm.com/wbi/2005/eflow#//FCMBlock"/>
+    <translation xmi:type="utility:TranslatableString" key="MAIN" bundleName="INT0080/SF_GET/PERPERSON/FUTURE/MAIN" pluginId="INT0080_HRDB"/>
+    <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj16/MAIN.gif"/>
+    <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/INT0080_HRDB/icons/full/obj30/MAIN.gif"/>
+    <longDescription xmi:type="utility:ConstantString" string="$MQSI MsgFlow = $URL$:MQSI$&#xD;"/>
+    <version xmi:type="utility:ConstantString" string="$Id$"/>
+    <composition>
+      <nodes xmi:type="ComIbmMQInput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="69,121" queueName="INT0080.GET.PERPERSON.FUTURE.TRIGGER" messageDomainProperty="XMLNSC">
+        <translation xmi:type="utility:ConstantString" string="INT0080.GET.PERPERSON.FUTURE.TRIGGER"/>
+      </nodes>
+      <nodes xmi:type="ICC_FRMWRK_ICC0001_MQ_INPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_2" location="308,124" INTID="INT0080">
+        <translation xmi:type="utility:ConstantString" string="ICC0001_MQ_INPUT_LOGGING"/>
+      </nodes>
+      <nodes xmi:type="INT0080_COMMON_GET_CONN_SF.subflow:FCMComposite_1" xmi:id="FCMComposite_1_3" location="500,121">
+        <translation xmi:type="utility:ConstantString" string="GET_CONN_SF"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_4" location="598,121" dataSource="HRDB" computeExpression="esql://routine/INT0080.SF_GET.PERPERSON.FUTURE#GetPerPersonFutureList.Main" computeMode="destinationAndMessage">
+        <translation xmi:type="utility:ConstantString" string="GetPerPersonFutureList"/>
+      </nodes>
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_5" location="746,122" URLSpecifier="http://dummy" timeoutForServer="240" httpMethod="GET" httpVersion="1.1" protocol="TLS" hostnameChecking="true" messageDomainProperty="JSON">
+        <translation xmi:type="utility:ConstantString" string="HTTP Request Get Person List"/>
+      </nodes>
+      <nodes xmi:type="ICC_FRMWRK_ICC0010_THROW_HTTP_EXCEPTION.subflow:FCMComposite_1" xmi:id="FCMComposite_1_7" location="1611,322">
+        <translation xmi:type="utility:ConstantString" string="ICC0010_THROW_HTTP_EXCEPTION"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_8" location="1023,124" computeExpression="esql://routine/INT0080.COMMON#CheckIfMoreToGet.Main">
+        <translation xmi:type="utility:ConstantString" string="CheckIfMoreToGet"/>
+      </nodes>
+      <nodes xmi:type="ICC_FRMWRK_ICC0018_LOG.subflow:FCMComposite_1" xmi:id="FCMComposite_1_9" location="921,123" LOGNAME="GetPerPersonFutureList" CONFIDENTIAL="true">
+        <translation xmi:type="utility:ConstantString" string="ICC0018_LOG"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_10" location="1148,126" computeExpression="esql://routine/INT0080.SF_GET.PERPERSON.FUTURE#GetSinglePerPersonFuture.Main" computeMode="destinationAndMessage">
+        <translation xmi:type="utility:ConstantString" string="GetSinglePerPersonFuture"/>
+      </nodes>
+      <nodes xmi:type="ICC_FRMWRK_ICC0007_NO_OUTPUT_LOGGING.subflow:FCMComposite_1" xmi:id="FCMComposite_1_11" location="1317,21">
+        <translation xmi:type="utility:ConstantString" string="ICC0007_NO_OUTPUT_LOGGING"/>
+      </nodes>
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_12" location="1324,126" URLSpecifier="http://dummy" timeoutForServer="240" httpMethod="GET" httpVersion="1.1" protocol="TLS" hostnameChecking="true" messageDomainProperty="JSON">
+        <translation xmi:type="utility:ConstantString" string="HTTP Request Get Single Person"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_13" location="1642,127" computeExpression="esql://routine/INT0080.SF_GET.PERPERSON.FUTURE#PropagateJsonMessage.Main">
+        <translation xmi:type="utility:ConstantString" string="PropagateJsonMessage"/>
+      </nodes>
+      <nodes xmi:type="ICC_FRMWRK_ICC0018_LOG.subflow:FCMComposite_1" xmi:id="FCMComposite_1_14" location="1513,126" LOGNAME="GetSinglePerPersonFuture" CONFIDENTIAL="true">
+        <translation xmi:type="utility:ConstantString" string="ICC0018_LOG1"/>
+      </nodes>
+      <nodes xmi:type="ComIbmMQOutput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_17" location="1789,128" queueName="INT0080.PROCESS.EMPLOYEE.FUTURE" transactionMode="no" newMsgId="true">
+        <translation xmi:type="utility:ConstantString" string="INT0080.PROCESS.EMPLOYEE.FUTURE"/>
+      </nodes>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_1" targetNode="FCMComposite_1_2" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.catch" targetTerminalName="InTerminal.Input1"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_2" targetNode="FCMComposite_1_3" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.Output" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_3" targetNode="FCMComposite_1_2" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_4" targetNode="FCMComposite_1_4" sourceNode="FCMComposite_1_3" sourceTerminalName="OutTerminal.Output" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_5" targetNode="FCMComposite_1_5" sourceNode="FCMComposite_1_4" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_6" targetNode="FCMComposite_1_7" sourceNode="FCMComposite_1_5" sourceTerminalName="OutTerminal.error" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_10" targetNode="FCMComposite_1_11" sourceNode="FCMComposite_1_10" sourceTerminalName="OutTerminal.out1" targetTerminalName="InTerminal.Input">
+        <bendPoints>55,-84,-91,15</bendPoints>
+      </connections>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_11" targetNode="FCMComposite_1_11" sourceNode="FCMComposite_1_10" sourceTerminalName="OutTerminal.out2" targetTerminalName="InTerminal.Input">
+        <bendPoints>84,-63,-62,36</bendPoints>
+      </connections>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_12" targetNode="FCMComposite_1_12" sourceNode="FCMComposite_1_10" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_13" targetNode="FCMComposite_1_7" sourceNode="FCMComposite_1_12" sourceTerminalName="OutTerminal.error" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_14" targetNode="FCMComposite_1_14" sourceNode="FCMComposite_1_12" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_15" targetNode="FCMComposite_1_13" sourceNode="FCMComposite_1_14" sourceTerminalName="OutTerminal.Output" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_16" targetNode="FCMComposite_1_9" sourceNode="FCMComposite_1_5" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_17" targetNode="FCMComposite_1_8" sourceNode="FCMComposite_1_9" sourceTerminalName="OutTerminal.Output" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_18" targetNode="FCMComposite_1_10" sourceNode="FCMComposite_1_8" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_19" targetNode="FCMComposite_1_17" sourceNode="FCMComposite_1_13" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+    </composition>
+    <propertyOrganizer/>
+    <stickyBoard/>
+  </eClassifiers>
+</ecore:EPackage>

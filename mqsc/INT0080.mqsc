@@ -251,6 +251,56 @@ DEFINE QLOCAL('INT0080.PROCESS.COSTCENTER') +
        MAXMSGL(104857600) +
        REPLACE
 
+DEFINE QLOCAL('INT0080.GET.PERPERSON.FUTURE.TRIGGER.BQ') +
+       DESCR('Backout queue to INT0080.GET.PERPERSON.FUTURE.TRIGGER') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.GET.PERPERSON.FUTURE.TRIGGER') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.GET.PERPERSON.FUTURE.TRIGGER.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.EMPLOYEE.FUTURE.BQ') +
+       DESCR('Backout queue to INT0080.PROCESS.EMPLOYEE.FUTURE') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.PROCESS.EMPLOYEE.FUTURE') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.PROCESS.EMPLOYEE.FUTURE.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.CLEAN.DB.TRIGGER.BQ') +
+       DESCR('Backout queue to INT0080.CLEAN.DB.TRIGGER') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
+
+DEFINE QLOCAL('INT0080.CLEAN.DB.TRIGGER') +
+       DESCR('Local queue used in INT0080') +
+       BOQNAME('INT0080.CLEAN.DB.TRIGGER.BQ') +
+       DEFBIND(OPEN) +
+       DEFPSIST(YES) +
+       MAXDEPTH(5000) +
+       MAXMSGL(104857600) +
+       REPLACE
 *******************************************************************
 * Remote queues
 *******************************************************************
