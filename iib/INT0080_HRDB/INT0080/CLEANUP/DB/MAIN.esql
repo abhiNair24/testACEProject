@@ -106,7 +106,7 @@ CREATE COMPUTE MODULE CleanUpDatabase
 			SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.Deleted.Employees.Employee[] = Environment.tmp.Purged.Deleted.EmpEmploymentFuture.Employee[];
 			
 			-- Delete SuccessFactors purged employee from table EmpEmploymentFuture since been Terminated 5 days
-			MOVE workingRef TO Environment.tmp.Purged.Deleted.EmpEmployment.Employee;
+			MOVE workingRef TO Environment.tmp.Purged.Deleted.EmpEmploymentFuture.Employee;
 			
 			WHILE LASTMOVE(workingRef) DO
 
