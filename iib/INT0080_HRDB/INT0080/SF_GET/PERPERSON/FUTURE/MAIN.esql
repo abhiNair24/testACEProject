@@ -127,7 +127,7 @@ CREATE COMPUTE MODULE GetSinglePerPersonFuture
 			PROPAGATE TO TERMINAL 'out2';						
 		ELSE
 			SET OutputRoot.Properties = InputRoot.Properties;
-			SET OutputRoot.XMLNSC.EmployeeFuture.Info = 'No data found SuccessFactors.';			
+			SET OutputRoot.XMLNSC.EmployeeFuture.Info = 'No future hires found in SuccessFactors.';			
 			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
 			PROPAGATE TO TERMINAL 'out1';
 		END IF;
