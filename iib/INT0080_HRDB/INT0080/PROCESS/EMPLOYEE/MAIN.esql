@@ -284,7 +284,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 												   'personIdExternal',
 												   inRef.personIdExternal,
 												   'employmentNav',
-												   'StartDate is greater than present date, assuming it is a future employeee->employmentNav/startDate:' || CAST(INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.startDate) AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'));					
+												   'StartDate is greater than present date, assuming it is a future employeee->employmentNav/startDate:' || CAST(INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate) AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'));					
 			END IF;
 		END IF;	
 		
