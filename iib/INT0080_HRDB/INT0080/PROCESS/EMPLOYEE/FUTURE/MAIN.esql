@@ -300,7 +300,7 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 			-- If last date worked still is null for a terminated employee, then something is wrong so log and ignore it
 			IF (lastWorkingDay IS NULL) THEN 
 				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
 												   'Ignore',
 												   'PerPerson',
 												   'personIdExternal',
