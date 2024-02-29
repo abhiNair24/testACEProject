@@ -14,7 +14,7 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 		
 		IF (CARDINALITY(InputRoot.JSON.Data.d.results.Item[]) > 0) THEN
 			CALL MapPerPersonFuture(inRef, syncTime);
-			SET OutputRoot.XMLNSC.Employee.Info = 'Employees sucessfully processed.';	
+			SET OutputRoot.XMLNSC.Employee.Info = 'Future Employees sucessfully processed.';	
 		ELSE
 			SET OutputRoot.XMLNSC.Employee.Info = 'No data found in input message.';			
 			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
@@ -31,7 +31,7 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 			DECLARE vFilter BOOLEAN FALSE;
 			DECLARE vIgnore BOOLEAN FALSE;
 			DECLARE vEmpAr INT 1;
-			DECLARE globAssign BOOLEAN FALSE;
+			--DECLARE globAssign BOOLEAN FALSE;
 			DECLARE workerType CHAR;
 			DECLARE employmentType CHAR;						
 
@@ -40,7 +40,7 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 			SET Environment.initials = inRef.customString10;
 		
 			-- Get correct employmentNav array		
-			CALL GetEmploymentNav(inRef, vEmpAr, globAssign, vIgnore, vFilter);			
+			CALL GetEmploymentNav(inRef, vEmpAr, vIgnore, vFilter);			
 			
 			IF (vFilter = FALSE) THEN			
 				
@@ -56,7 +56,6 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 				CALL ProcessEmploymentFuture(inRef,
 								   	   		 vEmpAr,
 								       		 workerType,
-								       		 globAssign,
 								       		 vIgnore,
 								       		 syncTime);		
 				
@@ -68,7 +67,6 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 		
 	CREATE PROCEDURE GetEmploymentNav(IN inRef REFERENCE, 
 									  INOUT vEmpAr INT, 
-									  INOUT globAssign BOOLEAN, 
 									  INOUT vIgnore BOOLEAN,
 									  INOUT vFilter BOOLEAN) BEGIN
 		DECLARE nbrEmpNav INT;
@@ -81,100 +79,67 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 		DECLARE i INT 1;
 		
 		-- Get current employee in table EmpEmployment
-		CALL GetCurrentEmpInEmployment(inRef.personIdExternal);	
-			
-		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00';	
+		CALL GetCurrentEmpInEmployment(inRef.personIdExternal);		
+		
+		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000';
+		SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss.SSS');
+
 		SET nbrEmpNav 	= CARDINALITY(inRef.employmentNav.results.Item[]);
 
 		IF (nbrEmpNav = 0) THEN
 			SET vIgnore = TRUE;
 		END IF;
+		
+		-- Filter out future employees that do not have employmentStatus 'Terminated' in table EmpEmployment or is new hires (not exists in table EmpEmployment)
+		IF (Environment.tmp.Employment.employmentStatus <> 'Terminated') THEN
+			SET vFilter = TRUE;
+			CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
+											   'Filter',
+											   'PerPerson',
+											   'personIdExternal',
+											   inRef.personIdExternal,
+											   'EmpEmployment',
+											   'Current employee in table EmpEmployment has employmentStatus: ' || Environment.tmp.Employment.employmentStatus || '. We only fetch new future hires (employees that does not exist in HRDB) or future rehires (employmentStatus = ''Terminated'' in table EmpEmployment)');	
+									  		
+		END IF;			
 
 		-- Get active employmentNav
-		IF (nbrEmpNav > 1) THEN		
-			DECLARE nullEndDate BOOLEAN FALSE;
+		IF (nbrEmpNav > 1 AND vFilter = FALSE) THEN		
 			
-			SET tmpStartDate = CAST('1970-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
+			-- Set temp start date way ahead in the future
+			SET tmpStartDate = CAST('2299-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
 			
 			WHILE(nbrEmpNav >= i) DO
 
 				SET vStartDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].startDate);
 				SET vEndDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].endDate);
 				SET vDateRange 	= vDateRange || '->startDate[' || CAST(i-1 AS CHAR) || ']:' || COALESCE(CAST(vStartDate AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'), 'null');
-				SET vDateRange 	= vDateRange || '->endDate[' || CAST(i-1 AS CHAR) || ']:' || COALESCE(CAST(vEndDate AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'), 'null');
-
-				IF (globAssign = FALSE) THEN			
-														
-					-- If employmentNav/endDate is null, then we assume this is the active record, even if another employmentNav/startDate is newer
-					IF (vEndDate IS NULL) THEN
-						SET nullEndDate = TRUE;
-						SET vEmpAr = i;
-					END IF;							
-					
-					-- employmentNav/startDate must be > than set start date(1970-01-01 00:00:00) or previous employmentNav/startDate
-					IF ((vStartDate > tmpStartDate) AND nullEndDate = FALSE) THEN
+				SET vDateRange 	= vDateRange || '->endDate[' || CAST(i-1 AS CHAR) || ']:' || COALESCE(CAST(vEndDate AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss'), 'null');		
+													
+				-- Todays date always needs to be lesser than employment info start date
+				IF (todayDate < vStartDate) THEN 
+					-- Employment info start date must always be lesser than previous employment info start date so we get one future date (the nearest future date to present date)
+					IF (vStartDate < tmpStartDate) THEN 
 						SET tmpStartDate = vStartDate;																
 						SET vEmpAr = i;
 					END IF;
-
-					-- Check if any Global Assignment exist and is active, if active, then it is this employmentNav to use and all others can be ignored
-					IF (inRef.employmentNav.results.Item[i].empGlobalAssignmentNav.userId IS NOT NULL) THEN					
-						IF (inRef.employmentNav.results.Item[i].jobInfoNav.results.Item.emplStatusNav.externalCode = 'A') THEN -- If jobInfo is active, then assume Global Assignment is active							
-							SET globAssign 	= TRUE;
-							SET vEmpAr 	= i;      	  	     			  							
-						END IF;
-					END IF;		
-				END IF;					
+				END IF;							
 				
 				SET i = i +1;	
 			END WHILE;				
 			
-			-- Filter out employees that is not new hires or do not have have employmentStatus 'Terminated' in table EmpEmployment
-			IF (Environment.tmp.Employment.employmentStatus <> 'Terminated') THEN
-				SET vFilter = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
-												   'Filter',
-												   'PerPerson',
-												   'personIdExternal',
-												   inRef.personIdExternal,
-												   'EmpEmployment',
-												   'Current employee in table EmpEmployment has employmentStatus: ' || Environment.tmp.Employment.employmentStatus || '. We only fetch new future hires (employees that does not exist in HRDB) or future rehires (employmentStatus = ''Terminated'' in table EmpEmployment)');							
-			ELSE		
-				IF (globAssign = TRUE) THEN -- Global Assignment is active - Allowed - log as info
-					CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
-													   'Info',
-													   'PerPerson',
-													   'personIdExternal',
-													   inRef.personIdExternal,
-													   'employmentNav',
-													   'Global Assignment is active->Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
-													   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);				
-				ELSE -- If several employmentNav - Allowed - log as info
-					CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
-													   'Info',
-													   'PerPerson',
-													   'personIdExternal',
-													   inRef.personIdExternal,
-													   'employmentNav',
-													   'Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
-													   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);
-				END IF;
-			END IF;
-		ELSE
+			-- Log info on which employmentNav used
+			CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
+											   'Info',
+											   'PerPerson',
+											   'personIdExternal',
+											   inRef.personIdExternal,
+											   'employmentNav',
+											   'Total employmentNav found:' || CAST(CARDINALITY(inRef.employmentNav.results.Item[]) AS CHAR) 
+											   || '->Used employmentNav array ' || CAST(vEmpAr -1 AS CHAR) || '->Date ranges' || vDateRange);
+		
+		END IF;		
 					
-			-- Filter out employees that is not new hires or do not have have employmentStatus 'Terminated' in table EmpEmployment
-			IF (Environment.tmp.Employment.employmentStatus <> 'Terminated') THEN
-				SET vFilter = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
-												   'Filter',
-												   'PerPerson',
-												   'personIdExternal',
-												   inRef.personIdExternal,
-												   'EmpEmployment',
-												   'Current employee in table EmpEmployment has employmentStatus: ' || Environment.tmp.Employment.employmentStatus || '. We only fetch new future hires (employees that does not exist in HRDB) or future rehires (employmentStatus = ''Terminated'' in table EmpEmployment)');	
-									  		
-			END IF;		
-		END IF;	
 	END;
 
 	CREATE PROCEDURE ValidateAndLog(IN inRef REFERENCE, INOUT vEmpAr INT, INOUT vIgnore BOOLEAN) BEGIN
@@ -283,24 +248,18 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 	   	RETURN orgUnitId;
 	END;
 			
-	CREATE PROCEDURE GetSeniorityDate(IN globAssign BOOLEAN,
-									  IN inRef REFERENCE,
+	CREATE PROCEDURE GetSeniorityDate(IN inRef REFERENCE,
 									  IN vEmpAr INT,
 									  INOUT seniorityDate TIMESTAMP) BEGIN
-	
-		IF (globAssign = TRUE) THEN				
-			-- Get seniority date from the employmentNav which is the active and do not contain Global Assignment
-			SET seniorityDate = INT0080.COMMON.GetSFTimeStamp(THE (SELECT ITEM fieldvalue(r.seniorityDate)
-					   		  	  	     	   				  	   FROM inRef.employmentNav.results.Item[] AS r
-						      	  	     	   				  	   WHERE r.endDate IS NULL
-						      	  	     	   				  	   AND r.empGlobalAssignmentNav.userId IS NULL));				
-		ELSE	
-			SET seniorityDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].seniorityDate);			
-			
-			IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN
-				SET seniorityDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate);
-			END IF;													
-		END IF;	
+		
+		
+		-- Set seniority date for contingent worker (externalCode = '9'), else for the rest
+		IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN
+			SET seniorityDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].startDate);
+		ELSE
+			SET seniorityDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].seniorityDate);
+		END IF;													
+
 	END;
 
 	CREATE PROCEDURE GetLastWorkingDay(IN inRef REFERENCE,
@@ -310,13 +269,6 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 		
 		DECLARE ldw TIMESTAMP;
 		DECLARE termDate TIMESTAMP;
-		DECLARE startEmpDate TIMESTAMP;
-		DECLARE endJobDate TIMESTAMP;
-		DECLARE todayDate TIMESTAMP;
-		DECLARE vtodayDate CHAR;
-		
-		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000';
-		SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss.SSS');
 		
 		SET ldw = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].lastDateWorked);
 		SET termDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].endDate);
@@ -324,17 +276,18 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 		-- Active employee
 		IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.externalCode <> 'T') THEN 
 			
-			-- External employee
-			IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN								
-				IF (todayDate = termDate) THEN
+			-- Only set last date worked if there exists a termination date
+			IF (termDate IS NOT NULL) THEN
+				
+				-- External employee
+				IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN												
 					SET lastWorkingDay = termDate;
-				END IF;
-			ELSE
+				
 				-- Permanent/Temporary employee
-				IF (todayDate = ldw OR (ldw < todayDate AND termDate >= todayDate)) THEN
+				ELSE				
 					SET lastWorkingDay = ldw;
-				END IF;	
-			END IF;			
+				END IF;			
+			END IF;	
 		
 		-- Terminated employee
 		ELSEIF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.externalCode = 'T') THEN		
@@ -344,19 +297,18 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 				SET lastWorkingDay = ldw;
 			END IF;
 			
-			-- If last worked date still is null for a terminated employee, then someything is wrong so log and ignore it
+			-- If last date worked still is null for a terminated employee, then something is wrong so log and ignore it
 			IF (lastWorkingDay IS NULL) THEN 
 				SET vIgnore = TRUE;
-				CALL INT0080.COMMON.InsertSynchLog('Employee',
+				CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
 												   'Ignore',
 												   'PerPerson',
 												   'personIdExternal',
 												   inRef.personIdExternal,
-												   'LastWorkingDay',
-												   'Last working day is missing for terminated employee (potentially a rehire)');	
-			END IF;		
-								
-		END IF;						
+												   'LastDateWorked',
+												   'Last date worked is missing for terminated employee');	
+			END IF;									
+		END IF;					
 	END;							
 
 	CREATE FUNCTION GetIsManager(IN teamMembersSize INT
@@ -373,7 +325,6 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 	CREATE PROCEDURE ProcessEmploymentFuture(IN inRef REFERENCE,
 								   	   		 IN vEmpAr INT,
 								   	   		 IN workerType CHAR,
-								   	   		 IN globAssign BOOLEAN,
 								   	   		 IN vIgnore BOOLEAN,
 								   	   		 IN syncTime TIMESTAMP) BEGIN
 		
@@ -481,82 +432,36 @@ CREATE COMPUTE MODULE ProcessEmployeeFuture
 	        	SET employeeSubClass = employeeClass;
 	        END IF;
 	        
-	        SET employeeType			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.customString4Nav.externalName, 255));	          
+	        SET employeeType = TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.customString4Nav.externalName, 255));	          
 	      	  	        	  		          	
 			-- Get employmentType
 			SET employmentType = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
 	   		  	  	        	  		  	  			 FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employmentTypeNav.picklistLabels.results.Item[] AS r
 		      	  	        	  		  	  			 WHERE r.locale = 'en_US'), NULL), 255));	
 
-	      	 
 			-- Get employmentStatus
 			SET employmentStatus = TRIM(LEFT(COALESCE(THE (SELECT ITEM fieldvalue(r.label)
 	   		  	  	        	  		  	  		  	   FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.picklistLabels.results.Item[] AS r
 		      	  	        	  		  	  		  	   WHERE r.locale = 'en_US'), NULL), 255));		
 
+			SET positionId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
+			SET positionName 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
+			SET positionEntryDate		= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionEntryDate);
+			SET orgUnitLevel1			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel1, 128));
+			SET orgUnitLevel2			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel2, 128));
+			SET orgUnitLevel3			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel3, 128));
+			SET orgUnitLevel4			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel4, 128));
+			SET orgUnitLevel5			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel5, 128));
+			SET orgUnitLevel6			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel6, 128));
+			SET parentPositionId		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.parentPosition.code, 128));
 
-
-
-			-- For some terminated employees the position related info disappears (position probably reused).
-			If (employmentStatus = 'Terminated' ) THEN
-
-				-- Don't use oData from PP/SF but use HRDB itself to populate these fields by looking up the best suitable old record for this employee.  
-				--   A dummy field "recordpriority" is created in the SELECT to prioritize: 
-				   -- (3) Non-terminated (Active) records which have a positionId
-				   -- (2) If above not found: records that have positionId
-				   -- (1) If above not found: rest of the records (typically employees terminated at initial load)
-				-- Using "ORDER BY xx DESC" to find the newest record ( top-1) with the heightest priority.     
+			-- Get contingentWorkerAdminPositionId 
+			SET contWrkAdmPositionId = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.relatedPosition)
+				       	   		 		   	 	  FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.positionMatrixRelationship.results.Item[] AS r
+			          	   		   		   	 	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
 				
-				SET Environment.Variables.lastOrgUnitLevels[] = 
-					PASSTHRU('SELECT TOP(1) TE.positionId, TE.positionName, TE.positionEntryDate,
-							TE.orgUnitLevel1, TE.orgUnitLevel2, TE.orgUnitLevel3, TE.orgUnitLevel4, TE.orgUnitLevel5, TE.orgUnitLevel6,
-							 TE.parentPositionId, TE.contingentWorkerAdminPositionId, 
-							 CASE 
-							 	WHEN TE.employmentStatus != ''Terminated'' and TE.positionId is not null THEN 3
-							 	WHEN TE.positionId is not null THEN 2
-							 	ELSE 1
-							 END as recordpriority
-						FROM ' || TBL_EMPLOYMENT_FUTURE || ' AS TE
-						WHERE TE.personIdExternal = ?   
-					 	ORDER BY recordpriority DESC, recordFromDate DESC ' TO Database.HRDB VALUES (personIdExternal) ); 				
-
-				SET positionId 				= Environment.Variables.lastOrgUnitLevels.positionId;
-				SET positionName 			= Environment.Variables.lastOrgUnitLevels.positionName;
-				SET positionEntryDate		= Environment.Variables.lastOrgUnitLevels.positionEntryDate;
-				SET orgUnitLevel1			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel1;
-				SET orgUnitLevel2			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel2;
-				SET orgUnitLevel3			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel3;
-				SET orgUnitLevel4			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel4;
-				SET orgUnitLevel5			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel5;
-				SET orgUnitLevel6			= Environment.Variables.lastOrgUnitLevels.orgUnitLevel6;
-				SET parentPositionId		= Environment.Variables.lastOrgUnitLevels.parentPositionId;
-				SET contWrkAdmPositionId 	= Environment.Variables.lastOrgUnitLevels.contingentWorkerAdminPositionId;
-			
-			ELSE 		
-				-- Proceed like "normal" getting values from oData query result	
-
-				SET positionId 				= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.position, 128));
-				SET positionName 			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.externalName_defaultValue, 255));
-				SET positionEntryDate		= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionEntryDate);
-
-				SET orgUnitLevel1			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel1, 128));
-				SET orgUnitLevel2			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel2, 128));
-				SET orgUnitLevel3			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel3, 128));
-				SET orgUnitLevel4			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel4, 128));
-				SET orgUnitLevel5			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel5, 128));
-				SET orgUnitLevel6			= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.cust_orgUnitLevel6, 128));
-				
-				SET parentPositionId		= TRIM(LEFT(inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.parentPosition.code, 128));
-	
-				-- Get contingentWorkerAdminPositionId 
-				SET contWrkAdmPositionId = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.relatedPosition)
-					       	   		 		   	 	  FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.positionMatrixRelationship.results.Item[] AS r
-				          	   		   		   	 	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
-				
-			END IF; 
-
 			-- Get seniorityDate
-			CALL GetSeniorityDate(globAssign, inRef, vEmpAr, seniorityDate);	
+			CALL GetSeniorityDate(inRef, vEmpAr, seniorityDate);	
 
 			
 			-- Get dateOfContractTerm

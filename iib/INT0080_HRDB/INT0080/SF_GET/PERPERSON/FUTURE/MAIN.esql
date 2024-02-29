@@ -140,35 +140,33 @@ CREATE COMPUTE MODULE GetSinglePerPersonFuture
 			DECLARE tmpStartDate TIMESTAMP;
 			DECLARE vStartDate TIMESTAMP;
 			DECLARE vEndDate TIMESTAMP;
+			DECLARE todayDate TIMESTAMP;
+			DECLARE vtodayDate CHAR;		
 			DECLARE i INT 1;
 								
 			SET nbrEmpNav 	= CARDINALITY(inRef.employmentNav.results.Item[]);
 
 			-- Get active employmentNav
 			IF (nbrEmpNav > 1) THEN		
-				DECLARE nullEndDate BOOLEAN FALSE;
-				
-				SET tmpStartDate = CAST('1970-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
-				
+			
+			-- Set temp start date way ahead in the future
+			SET tmpStartDate = CAST('2299-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
+			
 				WHILE(nbrEmpNav >= i) DO
-
-					SET vStartDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].startDate);
-					SET vEndDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].endDate);
-																	
-					-- If employmentNav/endDate is null, then we assume this is the active record, even if another employmentNav/startDate is newer
-					IF (vEndDate IS NULL) THEN
-						SET nullEndDate = TRUE;
-						SET vEmpAr = i;
-					END IF;							
+	
+					SET vStartDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].startDate);	
+														
+					-- Todays date always needs to be lesser than employment info start date
+					IF (todayDate < vStartDate) THEN 
+						-- Employment info start date must always be lesser than previous employment info start date so we get one future date (the nearest future date to present date)
+						IF (vStartDate < tmpStartDate) THEN 
+							SET tmpStartDate = vStartDate;																
+							SET vEmpAr = i;
+						END IF;
+					END IF;								
 					
-					-- employmentNav/startDate must be > than set start date(1970-01-01 00:00:00) or previous employmentNav/startDate
-					IF ((vStartDate > tmpStartDate) AND nullEndDate = FALSE) THEN
-						SET tmpStartDate = vStartDate;																
-						SET vEmpAr = i;
-					END IF;
-										
 					SET i = i +1;	
-				END WHILE;								
+				END WHILE;													
 			END IF;		
 	END;
 
