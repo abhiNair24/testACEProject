@@ -350,13 +350,6 @@ CREATE COMPUTE MODULE ProcessEmployee
 		
 		DECLARE ldw TIMESTAMP;
 		DECLARE termDate TIMESTAMP;
-		DECLARE startEmpDate TIMESTAMP;
-		DECLARE endJobDate TIMESTAMP;
-		DECLARE todayDate TIMESTAMP;
-		DECLARE vtodayDate CHAR;
-		
-		SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000';
-		SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss.SSS');
 		
 		SET ldw = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].lastDateWorked);
 		SET termDate = INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[vEmpAr].endDate);
@@ -364,17 +357,18 @@ CREATE COMPUTE MODULE ProcessEmployee
 		-- Active employee
 		IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.externalCode <> 'T') THEN 
 			
-			-- External employee
-			IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN								
-				IF (todayDate = termDate) THEN
+			-- Only set last date worked if there exists a termination date
+			IF (termDate IS NOT NULL) THEN
+				
+				-- External employee
+				IF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.employeeClassNav.externalCode = '9') THEN												
 					SET lastWorkingDay = termDate;
-				END IF;
-			ELSE
+				
 				-- Permanent/Temporary employee
-				IF (todayDate = ldw OR (ldw < todayDate AND termDate >= todayDate)) THEN
+				ELSE				
 					SET lastWorkingDay = ldw;
-				END IF;	
-			END IF;			
+				END IF;			
+			END IF;	
 		
 		-- Terminated employee
 		ELSEIF (inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.emplStatusNav.externalCode = 'T') THEN		
@@ -384,7 +378,7 @@ CREATE COMPUTE MODULE ProcessEmployee
 				SET lastWorkingDay = ldw;
 			END IF;
 			
-			-- If last worked date still is null for a terminated employee, then someything is wrong so log and ignore it
+			-- If last date worked still is null for a terminated employee, then something is wrong so log and ignore it
 			IF (lastWorkingDay IS NULL) THEN 
 				SET vIgnore = TRUE;
 				CALL INT0080.COMMON.InsertSynchLog('Employee',
@@ -392,8 +386,8 @@ CREATE COMPUTE MODULE ProcessEmployee
 												   'PerPerson',
 												   'personIdExternal',
 												   inRef.personIdExternal,
-												   'LastWorkingDay',
-												   'Last working day is missing for terminated employee (potentially a rehire)');	
+												   'LastDateWorked',
+												   'Last date worked is missing for terminated employee');	
 			END IF;		
 								
 		END IF;						
