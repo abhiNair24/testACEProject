@@ -13,114 +13,178 @@ CREATE COMPUTE MODULE CleanUpDatabase
 		
 		DECLARE daysBack INT 5;
 		DECLARE dateFrom CHAR;
+		DECLARE updateFrom CHAR;
+		DECLARE dateNow CHAR;
+		DECLARE maxLastSynchDate TIMESTAMP;
+		DECLARE maxLaSyDa CHAR;
+		DECLARE safeCheck INT;
 		DECLARE dataExists BOOLEAN false;
 		DECLARE workingRef REFERENCE TO OutputRoot;	
 		
-		DECLARE dummy char;
+		SET dateNow = CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd');
 		
-		-- Date to be used in queries to get entities (i.e. employees) that have been purged in SuccessFactors that we need to purge in HRDB
-		SET dateFrom = CAST(CURRENT_DATE - CAST(daysBack AS INTERVAL DAY) AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
+		-- Do some safe checks
+		SET maxLastSynchDate = 
+		SELECT  MAX(T.lastSyncDate)
+		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
+		WHERE	T.recordToDate IS NULL;
+				
+		SET safeCheck = 
+		SELECT  COUNT(*)
+		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
+		WHERE	T.recordToDate IS NULL AND	 	
+				T.lastSyncDate = maxLastSynchDate;
 		
-		SET OutputRoot.XMLNSC.Status.DaysToCleanUpFrom = daysBack;
-		SET OutputRoot.XMLNSC.Status.DateToCleanUpFrom = dateFrom;
+		SET maxLaSyDa = CAST(maxLastSynchDate AS CHAR FORMAT 'yyyy-MM-dd');
 		
-		-- EmpEmployment - Get none terminated employees from table EmpEmployment that have been purged in SuccessFactors
-		CALL GetPurgedNoneTerminatedEmployees(dateFrom, TBL_EMPLOYMENT);
+		-- If more than 10 000 employees have todays lastSyncDate set, then we assume everything is ok
+		IF (safeCheck > 10000 AND maxLaSyDa = dateNow) THEN
 		
-		IF (CARDINALITY(Environment.tmp.Purged.ToBeTerminated.EmpEmployment.Employee[]) > 0) THEN	
+			-- Date to be used in queries to get entities (i.e. employees) that have been purged in SuccessFactors that we need to purge in HRDB
+			SET dateFrom = CAST(CURRENT_DATE - CAST(daysBack AS INTERVAL DAY) AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
+			
+			-- Date to be used in queries to get purged employees with a lastDateWorked set in the future
+			SET updateFrom = CAST(CURRENT_DATE - CAST(1 AS INTERVAL DAY) AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
+			
+			SET OutputRoot.XMLNSC.Status.DaysToCleanUpFrom = daysBack;
+			SET OutputRoot.XMLNSC.Status.DateToCleanUpFrom = dateFrom;
+			
+			-- EmpEmployment - Get none terminated employees from table EmpEmployment that have been purged in SuccessFactors
+			CALL GetPurgedNoneTerminatedEmployees(dateFrom, TBL_EMPLOYMENT);
+			
+			IF (CARDINALITY(Environment.tmp.Purged.ToBeTerminated.EmpEmployment.Employee[]) > 0) THEN					
+				SET dataExists = true;
+				
+				-- Add info to out status message
+				SET OutputRoot.XMLNSC.Status.EmpEmployment.ToBeTerminated.Info = 'Employees that will be updated as Terminated in table EmpEmployment since purged in SuccessFactors';
+				SET OutputRoot.XMLNSC.Status.EmpEmployment.ToBeTerminated.Employees.Employee[] = Environment.tmp.Purged.ToBeTerminated.EmpEmployment.Employee[];
+				
+				-- Insert into table EmpEmployment a new employee row and set the employee as Terminated with event text
+				MOVE workingRef TO Environment.tmp.Purged.ToBeTerminated.EmpEmployment.Employee;
+				
+				WHILE LASTMOVE(workingRef) DO
+					CALL InsertTerminatedRowForAnEmployee(workingRef, 'EmpEmployment');	
+					MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
+				END WHILE;	
+				
+			END IF;
+				
+				
+			-- EmpEmployment - Gets terminated employees from EmpEmployment that have been purged in SuccessFactors and have a lastDateWorked or a dateOfContractTermination in the future
+			CALL GetPurgedTerminatedFutureEndDateEmployees(updateFrom, TBL_EMPLOYMENT);
+			
+			IF (CARDINALITY(Environment.tmp.Purged.Updated.EmpEmployment.Employee[]) > 0) THEN			
+				SET dataExists = true;
+	
+				-- Add info to out status message
+				SET OutputRoot.XMLNSC.Status.EmpEmployment.Updated.Info = 'Employees that will have lastDateWorked or dateOfContractTermination updated to present date since previous date was set in the future';		
+				SET OutputRoot.XMLNSC.Status.EmpEmployment.Updated.Employees.Employee[] = Environment.tmp.Purged.Updated.EmpEmployment.Employee[];
+				
+				-- Update lastDateWorked and dateOfContractTermination to present date
+				MOVE workingRef TO Environment.tmp.Purged.Updated.EmpEmployment.Employee;
+				
+				WHILE LASTMOVE(workingRef) DO
+					CALL InsertUpdatedRowForAnEmployee(workingRef, 'EmpEmployment');				
+					MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
+				END WHILE;				
+				
+			END IF;		
+				
+			-- EmpEmployment - Get to be deleted employees from EmpEmployment that have been purged in SuccessFactors
+			CALL GetPurgedToBeDeletedEmployees(dateFrom, TBL_EMPLOYMENT);
+			
+			IF (CARDINALITY(Environment.tmp.Purged.Deleted.EmpEmployment.Employee[]) > 0) THEN			
+				SET dataExists = true;
+				
+				-- Add info to out status message
+				SET OutputRoot.XMLNSC.Status.EmpEmployment.Deleted.Info = 'Employees that have been deleted from table EmpEmployment and table EmpPerson since purged in SuccessFactors';		
+				SET OutputRoot.XMLNSC.Status.EmpEmployment.Deleted.Employees.Employee[] = Environment.tmp.Purged.Deleted.EmpEmployment.Employee[];
+				
+				-- Delete SuccessFactors purged employees from table EmpEmployment and from table EmpPerson since been Terminated 5 days
+				MOVE workingRef TO Environment.tmp.Purged.Deleted.EmpEmployment.Employee;
+				
+				WHILE LASTMOVE(workingRef) DO
+	
+					DELETE FROM Database.dbo.{TBL_EMPLOYMENT} AS T
+					WHERE T.personIdExternal = workingRef.personIdExternal;
 					
-			SET dataExists = true;
-			
-			-- Add info to out status message
-			SET OutputRoot.XMLNSC.Status.EmpEmployment.ToBeTerminated.Info = 'Employees that will be updated as Terminated in table EmpEmployment since purged in SuccessFactors';
-			SET OutputRoot.XMLNSC.Status.EmpEmployment.ToBeTerminated.Employees.Employee[] = Environment.tmp.Purged.ToBeTerminated.EmpEmployment.Employee[];
-			
-			-- Insert into table EmpEmployment a new employee row and set the employee as Terminated with event text
-			MOVE workingRef TO Environment.tmp.Purged.ToBeTerminated.EmpEmployment.Employee;
-			
-			WHILE LASTMOVE(workingRef) DO
-
-				CALL InsertTerminatedRowForAnEmployee(workingRef, 'EmpEmployment');	
-				MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
-			END WHILE;	
-			
-		END IF;
-		
-		-- EmpEmployment - Get to be deleted employees from EmpEmployment that have been purged in SuccessFactors
-		CALL GetPurgedToBeDeletedEmployees(dateFrom, TBL_EMPLOYMENT);
-		
-		IF (CARDINALITY(Environment.tmp.Purged.Deleted.EmpEmployment.Employee[]) > 0) THEN			
-			SET dataExists = true;
-			
-			-- Add info to out status message
-			SET OutputRoot.XMLNSC.Status.EmpEmployment.Deleted.Info = 'Employees that have been deleted from table EmpEmployment and table EmpPerson since purged in SuccessFactors';		
-			SET OutputRoot.XMLNSC.Status.EmpEmployment.Deleted.Employees.Employee[] = Environment.tmp.Purged.Deleted.EmpEmployment.Employee[];
-			
-			-- Delete SuccessFactors purged employees from table EmpEmployment and from table EmpPerson since been Terminated 5 days
-			MOVE workingRef TO Environment.tmp.Purged.Deleted.EmpEmployment.Employee;
-			
-			WHILE LASTMOVE(workingRef) DO
-
-				DELETE FROM Database.dbo.{TBL_EMPLOYMENT} AS T
-				WHERE T.personIdExternal = workingRef.personIdExternal;
+					DELETE FROM Database.dbo.{TBL_PERSON} AS T
+					WHERE T.personIdExternal = workingRef.personIdExternal;
+					
+					COMMIT; -- Avoid long running locks
+								
+					MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
+				END WHILE;				
 				
-				DELETE FROM Database.dbo.{TBL_PERSON} AS T
-				WHERE T.personIdExternal = workingRef.personIdExternal;
+			END IF;		
+			
+			-- EmpEmploymentFuture - Get none terminated employees from EmpEmploymentFuture that have been purged in SuccessFactors
+			CALL GetPurgedNoneTerminatedEmployees(dateFrom, TBL_EMPLOYMENT_FUTURE);		
+			
+			IF (CARDINALITY(Environment.tmp.Purged.ToBeTerminated.EmpEmploymentFuture.Employee[]) > 0) THEN
+				SET dataExists = true;
 				
+				-- Add info to out status message
+				SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.ToBeTerminated.Info = 'Employees that will be updated as Terminated in table EmpEmploymentFuture since purged in SuccessFactors';		
+				SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.ToBeTerminated.Employees.Employee[] = Environment.tmp.Purged.ToBeTerminated.EmpEmploymentFuture.Employee[];
+				
+				-- Insert into table EmpEmploymentFuture a new employee row and set the employee as Terminated with event text
+				MOVE workingRef TO Environment.tmp.Purged.ToBeTerminated.EmpEmploymentFuture.Employee;
+				
+				WHILE LASTMOVE(workingRef) DO
+					CALL InsertTerminatedRowForAnEmployee(workingRef, 'EmpEmploymentFuture');			
+					MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
+				END WHILE;				
+				
+			END IF;
+	
+			-- EmpEmploymentFuture - Gets terminated employees from EmpEmployment that have been purged in SuccessFactors and have a lastDateWorked or a dateOfContractTermination in the future
+			CALL GetPurgedTerminatedFutureEndDateEmployees(updateFrom, TBL_EMPLOYMENT_FUTURE);
+			
+			IF (CARDINALITY(Environment.tmp.Purged.Updated.EmpEmploymentFuture.Employee[]) > 0) THEN			
+				SET dataExists = true;
+	
+				-- Add info to out status message
+				SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.Updated.Info = 'Employees that will have lastDateWorked or dateOfContractTermination updated to present date since previous date was set in the future';		
+				SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.Updated.Employees.Employee[] = Environment.tmp.Purged.Updated.EmpEmploymentFuture.Employee[];
+				
+				-- Update lastDateWorked and dateOfContractTermination to present date
+				MOVE workingRef TO Environment.tmp.Purged.Updated.EmpEmploymentFuture.Employee;
+				
+				WHILE LASTMOVE(workingRef) DO
+					CALL InsertUpdatedRowForAnEmployee(workingRef, 'EmpEmploymentFuture');				
+					MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
+								
+				END WHILE;				
+				
+			END IF;
+			
+			-- EmpEmploymentFuture - Get to be deleted employees from EmpEmploymentFuture that have been purged in SuccessFactors
+			CALL GetPurgedToBeDeletedEmployees(dateFrom, TBL_EMPLOYMENT_FUTURE);
+			
+			IF (CARDINALITY(Environment.tmp.Purged.Deleted.EmpEmploymentFuture.Employee[]) > 0) THEN
+				SET dataExists = true;
+				
+				-- Add info to out status message
+				SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.Deleted.Info = 'Employees that have been deleted from table EmpEmploymentFuture since purged in SuccessFactors';		
+				SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.Deleted.Employees.Employee[] = Environment.tmp.Purged.Deleted.EmpEmploymentFuture.Employee[];
+				
+				-- Delete SuccessFactors purged employee from table EmpEmploymentFuture since been Terminated 5 days
+				MOVE workingRef TO Environment.tmp.Purged.Deleted.EmpEmploymentFuture.Employee;
+				
+				WHILE LASTMOVE(workingRef) DO
+	
+					DELETE FROM Database.dbo.{TBL_EMPLOYMENT_FUTURE} AS T
+					WHERE T.personIdExternal = workingRef.personIdExternal;
+					
+					COMMIT; -- Avoid long running locks
+								
+					MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
+				END WHILE;		
+					
 				COMMIT; -- Avoid long running locks
-							
-				MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
-			END WHILE;				
-			
-		END IF;		
-		
-		-- EmpEmploymentFuture - Get none terminated employees from EmpEmploymentFuture that have been purged in SuccessFactors
-		CALL GetPurgedNoneTerminatedEmployees(dateFrom, TBL_EMPLOYMENT_FUTURE);		
-		
-		IF (CARDINALITY(Environment.tmp.Purged.ToBeTerminated.EmpEmploymentFuture.Employee[]) > 0) THEN
-			SET dataExists = true;
-			
-			-- Add info to out status message
-			SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.ToBeTerminated.Info = 'Employees that will be updated as Terminated in table EmpEmploymentFuture since purged in SuccessFactors';		
-			SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.ToBeTerminated.Employees.Employee[] = Environment.tmp.Purged.ToBeTerminated.EmpEmploymentFuture.Employee[];
-			
-			-- Insert into table EmpEmploymentFuture a new employee row and set the employee as Terminated with event text
-			MOVE workingRef TO Environment.tmp.Purged.ToBeTerminated.EmpEmploymentFuture.Employee;
-			
-			WHILE LASTMOVE(workingRef) DO
-
-				CALL InsertTerminatedRowForAnEmployee(workingRef, 'EmpEmploymentFuture');			
-				MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
-			END WHILE;				
-			
-		END IF;
-		
-		-- EmpEmploymentFuture - Get to be deleted employees from EmpEmploymentFuture that have been purged in SuccessFactors
-		CALL GetPurgedToBeDeletedEmployees(dateFrom, TBL_EMPLOYMENT_FUTURE);
-		
-		IF (CARDINALITY(Environment.tmp.Purged.Deleted.EmpEmploymentFuture.Employee[]) > 0) THEN
-			SET dataExists = true;
-			
-			-- Add info to out status message
-			SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.Deleted.Info = 'Employees that have been deleted from table EmpEmploymentFuture since purged in SuccessFactors';		
-			SET OutputRoot.XMLNSC.Status.EmpEmploymentFuture.Deleted.Employees.Employee[] = Environment.tmp.Purged.Deleted.EmpEmploymentFuture.Employee[];
-			
-			-- Delete SuccessFactors purged employee from table EmpEmploymentFuture since been Terminated 5 days
-			MOVE workingRef TO Environment.tmp.Purged.Deleted.EmpEmploymentFuture.Employee;
-			
-			WHILE LASTMOVE(workingRef) DO
-
-				DELETE FROM Database.dbo.{TBL_EMPLOYMENT_FUTURE} AS T
-				WHERE T.personIdExternal = workingRef.personIdExternal;
-				
-				COMMIT; -- Avoid long running locks
-							
-				MOVE workingRef NEXTSIBLING REPEAT TYPE NAME;	
-			END WHILE;		
-				
-				
-			COMMIT; -- Avoid long running locks
-		END IF;
+			END IF;
+		END IF; -- End safeCheck
 		
 		SET OutputRoot.Properties = InputRoot.Properties;
 		
@@ -262,6 +326,70 @@ CREATE COMPUTE MODULE CleanUpDatabase
 				T.recordFromDate < dateFrom AND
 				T.recordToDate IS NULL;					
 	END;
+
+	CREATE PROCEDURE GetPurgedTerminatedFutureEndDateEmployees(IN dateFrom CHAR, IN tableName CHAR) BEGIN		
+			
+		-- Get terminated purged employees that have a lastDateWorked or a dateOfContractTermination in the future 
+		SET Environment.tmp.Purged.Updated.{tableName}.Employee[] = 
+		SELECT  T.userId,
+				T.personIdExternal,
+				T.initials,
+				T.firstName,
+				T.lastName,
+				T.positionId,
+				T.positionName,
+				T.companyCode,
+				T.locationId,
+				T.costCenterId,
+				T.seniorityDate,
+				T.originalStartDate,
+				T.recruitDate,
+				T.positionEntryDate,
+				T.dateOfContractTermination,
+				T.lastDateWorked,
+				T.payGrade,
+				T.jobLevel,
+				T.employeeClass,
+				T.employeeSubClass,
+				T.employeeType,
+				T.employmentType,
+				T.employmentStatus,
+				T.isManager,
+				T.standardHours,
+				T.workingDaysPerWeek,
+				T.fullTimeEquivalent,
+				T.orgUnitId,
+				T.businessUnit,
+				T.division,
+				T.department,
+				T.orgUnitLevel1,
+				T.orgUnitLevel2,
+				T.orgUnitLevel3,
+				T.orgUnitLevel4,
+				T.orgUnitLevel5,
+				T.orgUnitLevel6,
+				T.businessEmail,
+				T.businessMobileCountryCode,
+				T.businessMobilePhoneNumber,
+				T.businessLandlineCountryCode,
+				T.businessLandlinePhoneNumber,
+				T.buildingNumber,
+				T.roomNumber,
+				T.managerUserId,
+				T.contingentWorkerAdminPositionId,
+				T.parentPositionId,
+				T.event,
+				T.eventReason,
+				T.eventDate,
+				T.recordFromDate,
+				T.recordToDate,
+				T.lastSyncDate
+		FROM 	Database.dbo.{tableName} AS T 
+		WHERE 	T.lastSyncDate < dateFrom AND
+				T.employmentStatus = 'Terminated' AND
+				(T.lastDateWorked > CURRENT_TIMESTAMP OR T.dateOfContractTermination > CURRENT_TIMESTAMP) AND
+				T.recordToDate IS NULL;					
+	END;
 	
 	CREATE PROCEDURE InsertTerminatedRowForAnEmployee(IN workingRef REFERENCE, IN tableName CHAR) BEGIN		
 		
@@ -287,14 +415,24 @@ CREATE COMPUTE MODULE CleanUpDatabase
 		IF (COALESCE(workingRef.dateOfContractTermination, null) is null) THEN
 			SET dateOfContractTermination = CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
 		ELSE
-			SET dateOfContractTermination = workingRef.dateOfContractTermination;
+			-- If dateOfContractTermination is in the future, then set it to current date instead
+			IF (workingRef.dateOfContractTermination > ts) THEN 
+				SET dateOfContractTermination =  CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000';
+			ELSE
+				SET dateOfContractTermination = workingRef.dateOfContractTermination;
+			END IF;			
 		END IF;
 		
 		-- If lastDateWorked already set, then use that, else use current timestamp
-		IF (COALESCE(workingRef.lastDateWorked, null) is null) THEN
+		IF (COALESCE(workingRef.lastDateWorked, null) is not null) THEN
 			SET lastDateWorked =  CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
 		ELSE
-			SET lastDateWorked = workingRef.lastDateWorked;
+			-- If lastDateWorked is in the future, then set it to current date instead
+			IF (workingRef.lastDateWorked > ts) THEN 
+				SET lastDateWorked =  CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000';
+			ELSE
+				SET lastDateWorked = workingRef.lastDateWorked;
+			END IF;
 		END IF;
 
 		-- Update current row
@@ -413,5 +551,145 @@ CREATE COMPUTE MODULE CleanUpDatabase
 				COALESCE(workingRef.lastSyncDate, null));	
 		
 		COMMIT; -- Avoid long running locks	
-	END;		
+	END;
+	
+CREATE PROCEDURE InsertUpdatedRowForAnEmployee(IN workingRef REFERENCE, IN tableName CHAR) BEGIN		
+		
+		DECLARE ts 							TIMESTAMP;
+		DECLARE employmentStatus			CHAR;
+		DECLARE event 						CHAR;
+		DECLARE eventReason 				CHAR;
+		DECLARE dateOfContractTermination	TIMESTAMP;
+		DECLARE lastDateWorked				TIMESTAMP;
+		
+		SET lastDateWorked 				= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
+		SET dateOfContractTermination 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000';
+		SET ts 							= CURRENT_TIMESTAMP;		
+		SET event 						= 'INT0080 automatic clean up db process';
+		SET eventReason 				= 'Update - Employee had a future lastDateWorked or dateOfContractTermination when purged in SF';
+		
+		-- If table EmpEmploymentFuture, then set 'Future - ' before event text
+		IF (tableName = 'EmpEmploymentFuture') THEN
+			SET event = 'Future - ' || event;
+		END IF;
+		
+		-- Update current row
+		UPDATE Database.dbo.{tableName} AS T 
+		SET recordToDate = ts
+		WHERE T.personIdExternal = workingRef.personIdExternal AND T.recordToDate IS NULL;
+					
+		COMMIT; -- Avoid long running locks
+		
+		-- Insert new row as Terminated	
+		INSERT INTO Database.dbo.{tableName}(userId,
+											 personIdExternal,
+											 initials,
+											 firstName,
+											 lastName,
+											 positionId,
+											 positionName,
+											 companyCode,
+											 locationId,
+											 costCenterId,
+											 seniorityDate,
+											 originalStartDate,
+											 recruitDate,
+											 positionEntryDate,
+											 dateOfContractTermination,
+											 lastDateWorked,
+											 payGrade,
+											 jobLevel,
+											 employeeClass,
+											 employeeSubClass,
+											 employeeType,
+											 employmentType,
+											 employmentStatus,
+											 isManager,
+											 standardHours,
+											 workingDaysPerWeek,
+											 fullTimeEquivalent,
+											 orgUnitId,
+											 businessUnit,
+											 division,
+											 department,
+											 orgUnitLevel1,
+											 orgUnitLevel2,
+											 orgUnitLevel3,
+											 orgUnitLevel4,
+											 orgUnitLevel5,
+											 orgUnitLevel6,
+											 businessEmail,
+											 businessMobileCountryCode,
+											 businessMobilePhoneNumber,
+											 businessLandlineCountryCode,
+											 businessLandlinePhoneNumber,
+											 buildingNumber,
+											 roomNumber,
+											 managerUserId,
+											 contingentWorkerAdminPositionId,
+											 parentPositionId,
+											 event,
+											 eventReason,
+											 eventDate,
+											 recordFromDate,
+											 recordToDate,
+											 lastSyncDate)
+		VALUES (COALESCE(workingRef.userId, null),
+				COALESCE(workingRef.personIdExternal, null),
+				COALESCE(workingRef.initials, null),
+				COALESCE(workingRef.firstName, null),
+				COALESCE(workingRef.lastName, null),
+				COALESCE(workingRef.positionId, null),
+				COALESCE(workingRef.positionName, null),
+				COALESCE(workingRef.companyCode, null),
+				COALESCE(workingRef.locationId, null),
+				COALESCE(workingRef.costCenterId, null),
+				COALESCE(workingRef.seniorityDate, null),
+				COALESCE(workingRef.originalStartDate, null),
+				COALESCE(workingRef.recruitDate, null),
+				COALESCE(workingRef.positionEntryDate, null),
+				dateOfContractTermination,
+				lastDateWorked,
+				COALESCE(workingRef.payGrade, null),
+				COALESCE(workingRef.jobLevel, null),
+				COALESCE(workingRef.employeeClass, null),
+				COALESCE(workingRef.employeeSubClass, null),
+				COALESCE(workingRef.employeeType, null),
+				COALESCE(workingRef.employmentType, null),
+				COALESCE(workingRef.employmentStatus, null),
+				COALESCE(workingRef.isManager, null),
+				COALESCE(workingRef.standardHours, null),
+				COALESCE(workingRef.workingDaysPerWeek, null),
+				COALESCE(workingRef.fullTimeEquivalent, null),
+				COALESCE(workingRef.orgUnitId, null),
+				COALESCE(workingRef.businessUnit, null),
+				COALESCE(workingRef.division, null),
+				COALESCE(workingRef.department, null),
+				COALESCE(workingRef.orgUnitLevel1, null),
+				COALESCE(workingRef.orgUnitLevel2, null),
+				COALESCE(workingRef.orgUnitLevel3, null),
+				COALESCE(workingRef.orgUnitLevel4, null),
+				COALESCE(workingRef.orgUnitLevel5, null),
+				COALESCE(workingRef.orgUnitLevel6, null),
+				COALESCE(workingRef.businessEmail, null),
+				COALESCE(workingRef.businessMobileCountryCode, null),
+				COALESCE(workingRef.businessMobilePhoneNumber, null),
+				COALESCE(workingRef.businessLandlineCountryCode, null),
+				COALESCE(workingRef.businessLandlinePhoneNumber, null),
+				COALESCE(workingRef.buildingNumber, null),
+				COALESCE(workingRef.roomNumber, null),
+				COALESCE(workingRef.managerUserId, null),
+				COALESCE(workingRef.contingentWorkerAdminPositionId, null),
+				COALESCE(workingRef.parentPositionId, null),
+				event,
+				eventReason,
+				ts, -- eventDate
+				ts, -- recordFromDate
+				null, -- recordToDate
+				COALESCE(workingRef.lastSyncDate, null));	
+		
+		COMMIT; -- Avoid long running locks	
+	END;
+
+			
 END MODULE;
