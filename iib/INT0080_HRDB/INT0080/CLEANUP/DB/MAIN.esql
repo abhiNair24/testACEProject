@@ -15,30 +15,21 @@ CREATE COMPUTE MODULE CleanUpDatabase
 		DECLARE dateFrom CHAR;
 		DECLARE updateFrom CHAR;
 		DECLARE dateNow CHAR;
-		DECLARE maxLastSynchDate TIMESTAMP;
-		DECLARE maxLaSyDa CHAR;
 		DECLARE safeCheck INT;
 		DECLARE dataExists BOOLEAN false;
 		DECLARE workingRef REFERENCE TO OutputRoot;	
 		
 		SET dateNow = CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd');
 		
-		-- Do some safe checks
-		SET maxLastSynchDate = 
-		SELECT  MAX(T.lastSyncDate)
-		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
-		WHERE	T.recordToDate IS NULL;
-				
+		-- Get count of total active rows that have LastSynchDate as todays date or grater than todays date  				
 		SET safeCheck = 
 		SELECT  COUNT(*)
 		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
 		WHERE	T.recordToDate IS NULL AND	 	
-				T.lastSyncDate = maxLastSynchDate;
-		
-		SET maxLaSyDa = CAST(maxLastSynchDate AS CHAR FORMAT 'yyyy-MM-dd');
-		
-		-- If more than 10 000 employees have todays lastSyncDate set, then we assume everything is ok
-		IF (safeCheck > 10000 AND maxLaSyDa = dateNow) THEN
+				T.lastSyncDate >= dateNow;
+				
+		-- If more than 10 000 employees have todays lastSyncDate set, then we assume we can run cleanup checks
+		IF (safeCheck > 10000) THEN
 		
 			-- Date to be used in queries to get entities (i.e. employees) that have been purged in SuccessFactors that we need to purge in HRDB
 			SET dateFrom = CAST(CURRENT_DATE - CAST(daysBack AS INTERVAL DAY) AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
@@ -184,7 +175,7 @@ CREATE COMPUTE MODULE CleanUpDatabase
 					
 				COMMIT; -- Avoid long running locks
 			END IF;
-		END IF; -- End safeCheck
+		END IF; -- End safeCheckCount
 		
 		SET OutputRoot.Properties = InputRoot.Properties;
 		
@@ -192,7 +183,7 @@ CREATE COMPUTE MODULE CleanUpDatabase
 		IF (dataExists = true) THEN
 			PROPAGATE TO TERMINAL 'out';		
 		ELSE
-			SET OutputRoot.XMLNSC.Status.Info = 'No data found in database HRDB to be cleaned up';			
+			SET OutputRoot.XMLNSC.Status.Info = 'No data found in database HRDB to be cleaned up. Note! There is a safe check that checks so there are more than 10 000 employees where recordToDate is null and that have todays lastSyncDate set before running any cleanup checks!';			
 			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
 			PROPAGATE TO TERMINAL 'out1';
 		END IF;
@@ -439,9 +430,7 @@ CREATE COMPUTE MODULE CleanUpDatabase
 		UPDATE Database.dbo.{tableName} AS T 
 		SET recordToDate = ts
 		WHERE T.personIdExternal = workingRef.personIdExternal AND T.recordToDate IS NULL;
-					
-		COMMIT; -- Avoid long running locks
-		
+							
 		-- Insert new row as Terminated	
 		INSERT INTO Database.dbo.{tableName}(userId,
 											 personIdExternal,
@@ -577,9 +566,7 @@ CREATE PROCEDURE InsertUpdatedRowForAnEmployee(IN workingRef REFERENCE, IN table
 		UPDATE Database.dbo.{tableName} AS T 
 		SET recordToDate = ts
 		WHERE T.personIdExternal = workingRef.personIdExternal AND T.recordToDate IS NULL;
-					
-		COMMIT; -- Avoid long running locks
-		
+							
 		-- Insert new row as Terminated	
 		INSERT INTO Database.dbo.{tableName}(userId,
 											 personIdExternal,
