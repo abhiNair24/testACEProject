@@ -411,7 +411,7 @@ CREATE COMPUTE MODULE CleanUpDatabase
 			SET event = 'Future - ' || event;
 		END IF;
 		
-		-- If dateOfContractTermination already set, then use that, else use current timestamp
+		-- If dateOfContractTermination is null, then use current timestamp
 		IF (COALESCE(workingRef.dateOfContractTermination, null) is null) THEN
 			SET dateOfContractTermination = CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
 		ELSE
@@ -423,8 +423,8 @@ CREATE COMPUTE MODULE CleanUpDatabase
 			END IF;			
 		END IF;
 		
-		-- If lastDateWorked already set, then use that, else use current timestamp
-		IF (COALESCE(workingRef.lastDateWorked, null) is not null) THEN
+		-- If lastDateWorked is null, then use current timestamp
+		IF (COALESCE(workingRef.lastDateWorked, null) is null) THEN
 			SET lastDateWorked =  CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
 		ELSE
 			-- If lastDateWorked is in the future, then set it to current date instead
