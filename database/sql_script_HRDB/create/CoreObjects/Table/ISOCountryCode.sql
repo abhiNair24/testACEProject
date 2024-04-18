@@ -10,6 +10,10 @@ GO
 CREATE TABLE [dbo].[ISOCountryCode](
 	[country] [nvarchar](200) NOT NULL,
 	[alpha2Code] [nvarchar](2) NOT NULL,
-	[alpha3Code] [nvarchar](3) NOT NULL)
-	ON [PRIMARY]
+	[alpha3Code] [nvarchar](3) NOT NULL
+ CONSTRAINT [PK_ISOCountryCode] PRIMARY KEY CLUSTERED 
+(
+	[country] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, FILLFACTOR = 90) ON [PRIMARY]
+) ON [PRIMARY]
 GO
