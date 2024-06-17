@@ -65,11 +65,13 @@ CREATE COMPUTE MODULE GetFOBusinessUnit
 		SET vSelect = vSelect || 'cust_toBusinessUnit/externalCode,';
 		SET vSelect = vSelect || 'cust_costCenter,';
 		SET vSelect = vSelect || 'headOfUnit,';
-		SET vSelect = vSelect || 'status';	
+		SET vSelect = vSelect || 'status,';
+		SET vSelect = vSelect || 'cust_costCenterNav/cust_toCompany/defaultLocationNav/externalCode';			
 				
 		-- Expand
 		SET vExpand = vExpand || 'cust_toBusinessUnit,';
-		
+		SET vExpand = vExpand || 'cust_costCenterNav/cust_toCompany/defaultLocationNav,';
+				
 		RETURN vHost || vObject || '?' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
 		
 	END;

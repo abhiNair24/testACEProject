@@ -42,6 +42,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			DECLARE costCenterId		CHAR;
 			DECLARE headOfUnitUserId	CHAR;
 			DECLARE status	 			CHAR;
+			DECLARE locationId			CHAR;
 
 			-- Incase of error then easier to identify which row that was in error
 			SET Environment.OrgUnitID = inRef.externalCode;
@@ -53,6 +54,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET costCenterId		= TRIM(LEFT(inRef.costCenter, 90));
 			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
 			SET status 				= TRIM(LEFT(inRef.status, 2));
+			SET locationId			= inRef.costCenterNav.cust_toCompany.results.Item.defaultLocationNav.externalCode;
 			
 			IF (inRef.parent IS NULL) THEN
 				SET orgUnitParent = TRIM(LEFT(COALESCE(inRef.cust_toDivision.externalCode, NULL), 32));
@@ -65,6 +67,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 							    name, 
 							    orgUnitType,
 							    orgUnitParent,
+							    locationId,
 							    costCenterId,
 							    headOfUnitUserId,
 							    status);
@@ -83,6 +86,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			DECLARE costCenterId		CHAR;
 			DECLARE headOfUnitUserId	CHAR;
 			DECLARE status	 			CHAR;
+			DECLARE locationId			CHAR;
 
 			-- Incase of error then easier to identify which row that was in error
 			SET Environment.OrgUnitID = inRef.externalCode;
@@ -95,12 +99,14 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
 			SET status 				= TRIM(LEFT(inRef.status, 2));
 			SET orgUnitParent 		= TRIM(LEFT(COALESCE(inRef.cust_toBusinessUnit.externalCode, NULL), 32));		
-
+			SET locationId			= inRef.cust_costCenterNav.cust_toCompany.results.Item.defaultLocationNav.externalCode;
+			
 			-- Process table OrgUnit	
 			CALL ProcessOrgUnit(orgUnitId, 
 							    name, 
 							    orgUnitType,
 							    orgUnitParent,
+							    locationId,
 							    costCenterId,
 							    headOfUnitUserId,
 							    status);
@@ -119,6 +125,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			DECLARE costCenterId		CHAR;
 			DECLARE headOfUnitUserId	CHAR;
 			DECLARE status	 			CHAR;
+			DECLARE locationId			CHAR;
 
 			-- Incase of error then easier to identify which row that was in error
 			SET Environment.OrgUnitID = inRef.externalCode;
@@ -131,12 +138,14 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET headOfUnitUserId	= TRIM(LEFT(inRef.headOfUnit, 100));		
 			SET status 				= TRIM(LEFT(inRef.status, 2));
 			SET orgUnitParent 		= TRIM(LEFT(COALESCE(inRef.cust_toBusinessUnit.externalCode, NULL), 32));		
-
+			SET locationId			= inRef.cust_costCenterNav.cust_toCompany.results.Item.defaultLocationNav.externalCode;
+			
 			-- Process table OrgUnit	
 			CALL ProcessOrgUnit(orgUnitId, 
 							    name, 
 							    orgUnitType,
 							    orgUnitParent,
+							    locationId,
 							    costCenterId,
 							    headOfUnitUserId,
 							    status);
@@ -149,9 +158,10 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 								    IN name CHAR, 
 								    IN orgUnitType CHAR,
 								    IN orgUnitParent CHAR,
+								    IN locationId CHAR,
 							   	    IN costCenterId CHAR,
 							   	    IN headOfUnitUserId CHAR,
-								    IN status CHAR) BEGIN				
+								    IN status CHAR ) BEGIN				
 		
 		DECLARE datbaseAction	CHAR;		
 		
@@ -165,7 +175,8 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 			SET datbaseAction = 'Insert';
 		ELSEIF (COALESCE(name, '') <> COALESCE(Environment.tmp.OrgUnit.name, '') OR
 				COALESCE(orgUnitType, '') <> COALESCE(Environment.tmp.OrgUnit.orgUnitType, '') OR
-				COALESCE(orgUnitParent, '') <> COALESCE(Environment.tmp.OrgUnit.orgUnitParent, '') OR				
+				COALESCE(orgUnitParent, '') <> COALESCE(Environment.tmp.OrgUnit.orgUnitParent, '') OR
+				COALESCE(locationId, '') <> COALESCE(Environment.tmp.OrgUnit.locationId, '') OR			
 				COALESCE(costCenterId, '') <> COALESCE(Environment.tmp.OrgUnit.costCenterId, '') OR
 				COALESCE(headOfUnitUserId, '') <> COALESCE(Environment.tmp.OrgUnit.headOfUnitUserId, '') OR
 				COALESCE(status, '') <> COALESCE(Environment.tmp.OrgUnit.status, '')) THEN
@@ -177,14 +188,16 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 						   	   name, 
 						   	   orgUnitType,
 						   	   orgUnitParent,
+						   	   locationId,
 							   costCenterId,
 							   headOfUnitUserId,
-						   	  status);
+						   	   status);
 		ELSEIF (datbaseAction = 'Update') THEN
 			CALL UpdateOrgUnit(orgUnitId, 
 						   	   name, 
 						   	   orgUnitType,
 						   	   orgUnitParent,
+						   	   locationId,
 							   costCenterId,
 							   headOfUnitUserId,
 						   	   status);
@@ -201,6 +214,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 				T.name,
 				T.orgUnitType,
 				T.orgUnitParent,
+				T.locationId,
 				T.costCenterId,
 				T.headOfUnitUserId,
 				T.status
@@ -212,6 +226,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 								   IN name CHAR,
 								   IN orgUnitType CHAR,
 								   IN orgUnitParent CHAR,
+								   IN locationId CHAR,
 							   	   IN costCenterId CHAR,
 							   	   IN headOfUnitUserId CHAR,								  
 								   IN status CHAR) BEGIN
@@ -220,6 +235,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 										   name,
 										   orgUnitType,
 										   orgUnitParent,
+										   locationId,
 										   costCenterId,
 										   headOfUnitUserId,
 										   status,											   
@@ -229,6 +245,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 				name,
 				orgUnitType,
 				orgUnitParent,
+				locationId,
 				costCenterId,
 				headOfUnitUserId,
 				status,														
@@ -240,6 +257,7 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 								   IN name CHAR,
 								   IN orgUnitType CHAR,
 								   IN orgUnitParent CHAR,
+								   IN locationId CHAR,
 							   	   IN costCenterId CHAR,
 							   	   IN headOfUnitUserId CHAR,								  
 								   IN status CHAR) BEGIN
@@ -247,7 +265,8 @@ CREATE COMPUTE MODULE ProcessOrgUnit
 		UPDATE Database.dbo.OrgUnit AS T
 		SET name 				= name, 
 			orgUnitType			= orgUnitType,
-			orgUnitParent		= orgUnitParent, 
+			orgUnitParent		= orgUnitParent,
+			locationId			= locationId, 
 			costCenterId 		= costCenterId,
 			headOfUnitUserId 	= headOfUnitUserId,			
 			status				= status,

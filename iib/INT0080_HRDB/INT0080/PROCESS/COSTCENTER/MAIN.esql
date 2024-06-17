@@ -42,14 +42,16 @@ CREATE COMPUTE MODULE ProcessCostCenter
 		DECLARE name 				CHAR;
 		DECLARE managerUserId 		CHAR;
 		DECLARE status		 		CHAR;
+		DECLARE locationId			CHAR;
 		DECLARE datbaseAction		CHAR;
+		
 		
 		SET costCenterId			= TRIM(LEFT(inRef.externalCode, 32));
 		SET name					= TRIM(LEFT(inRef.name_defaultValue, 90));
 		SET managerUserId			= TRIM(LEFT(inRef.costcenterManager, 100));
 		SET status					= TRIM(LEFT(inRef.status, 2));
-				
-						
+		SET locationId				= inRef.cust_toCompany.results.Item.defaultLocationNav.externalCode;
+					
 		-- Get current cost center in table CostCenter
 		CALL GetCurrentCostCtrInCostCenter(costCenterId);
 		
@@ -58,6 +60,7 @@ CREATE COMPUTE MODULE ProcessCostCenter
 		IF (CARDINALITY(Environment.tmp.CostCenter[]) = 0) THEN
 			SET datbaseAction = 'Insert';
 		ELSEIF (COALESCE(name, '') <> COALESCE(Environment.tmp.CostCenter.name, '') OR
+				COALESCE(locationId, '') <> COALESCE(Environment.tmp.CostCenter.locationId, '') OR
 				COALESCE(managerUserId, '') <> COALESCE(Environment.tmp.CostCenter.managerUserId, '') OR
 				COALESCE(status, '') <> COALESCE(Environment.tmp.CostCenter.status, '')) THEN
 			SET datbaseAction = 'Update';
@@ -66,11 +69,13 @@ CREATE COMPUTE MODULE ProcessCostCenter
 		IF (datbaseAction = 'Insert') THEN
 			CALL InsertCostCenter(costCenterId,
 							      name,
+							      locationId,
 							      managerUserId,
 							   	  status);
 		ELSEIF (datbaseAction = 'Update') THEN
 			CALL UpdateCostCenter(costCenterId,
 							   	  name,
+							   	  locationId,
 							   	  managerUserId,
 							   	  status);
 		ELSE -- Update existing record with a lastSyncDate
@@ -84,6 +89,7 @@ CREATE COMPUTE MODULE ProcessCostCenter
 		SET Environment.tmp.CostCenter[] = 
 		SELECT  T.costCenterId,
 				T.name,
+				T.locationId,
 				T.managerUserId,
 				T.status
 		FROM 	Database.dbo.CostCenter AS T 
@@ -92,17 +98,20 @@ CREATE COMPUTE MODULE ProcessCostCenter
 
 	CREATE PROCEDURE InsertCostCenter(IN costCenterId CHAR,
 								   	  IN name CHAR,
+								   	  IN locationId CHAR,
 								   	  IN managerUserId CHAR,
 								   	  IN status CHAR) BEGIN
 
 		INSERT INTO Database.dbo.CostCenter(costCenterId,
 											   name,
+											   locationId,
 											   managerUserId,
 											   status,
 											   recordLastUpdated,
 											   lastSyncDate)
 		VALUES (costCenterId,
 				name,
+				locationId,
 				managerUserId,
 				status,															
 				CURRENT_TIMESTAMP,			--recordLastUpdated
@@ -111,12 +120,14 @@ CREATE COMPUTE MODULE ProcessCostCenter
 
 	CREATE PROCEDURE UpdateCostCenter(IN costCenterId CHAR,
 								   	  IN name CHAR,
+								   	  IN locationId CHAR,
 								   	  IN managerUserId CHAR,
 								   	  IN status CHAR) BEGIN
 
 		UPDATE Database.dbo.CostCenter AS T
 		SET costCenterId 		= costCenterId, 
-			name 				= name, 
+			name 				= name,
+			locationId			= locationId, 
 			managerUserId 		= managerUserId,
 			status 				= status,
 			recordLastUpdated 	= CURRENT_TIMESTAMP,

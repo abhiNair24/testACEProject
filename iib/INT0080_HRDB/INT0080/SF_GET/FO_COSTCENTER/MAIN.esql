@@ -53,9 +53,15 @@ CREATE COMPUTE MODULE GetFOCostCenter
 		SET vSelect = vSelect || 'externalCode,';
 		SET vSelect = vSelect || 'name_defaultValue,';						
 		SET vSelect = vSelect || 'costcenterManager,';
-		SET vSelect = vSelect || 'status';	
+		SET vSelect = vSelect || 'status,';
+		SET vSelect = vSelect || 'cust_toCompany/defaultLocationNav/externalCode';
 		
-		RETURN vHost || vObject || '?' || vSelect || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
+		-- Expand
+		SET vExpand = vExpand || 'cust_toCompany/defaultLocationNav,';
+				
+		RETURN vHost || vObject || '?' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;			
+		
+		--RETURN vHost || vObject || '?' || vSelect || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
 		
 	END;
 END MODULE;

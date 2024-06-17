@@ -66,11 +66,13 @@ CREATE COMPUTE MODULE GetFODepartment
 		SET vSelect = vSelect || 'cust_toDivision/externalCode,';
 		SET vSelect = vSelect || 'costCenter,';
 		SET vSelect = vSelect || 'headOfUnit,';
-		SET vSelect = vSelect || 'status';	
+		SET vSelect = vSelect || 'status,';	
+		SET vSelect = vSelect || 'costCenterNav/cust_toCompany/defaultLocationNav/externalCode';
 				
 		-- Expand
 		SET vExpand = vExpand || 'cust_toDivision,';
-		
+		SET vExpand = vExpand || 'costCenterNav/cust_toCompany/defaultLocationNav,';
+			
 		RETURN vHost || vObject || '?' || vSelect || '&' || vExpand || '&' || vCustom || '&' || vFormat  || '&' || vPaging;
 		
 	END;
