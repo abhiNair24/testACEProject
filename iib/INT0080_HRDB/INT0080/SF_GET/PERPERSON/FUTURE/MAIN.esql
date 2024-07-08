@@ -139,22 +139,24 @@ CREATE COMPUTE MODULE GetSinglePerPersonFuture
 			DECLARE nbrEmpNav INT;
 			DECLARE tmpStartDate TIMESTAMP;
 			DECLARE vStartDate TIMESTAMP;
-			DECLARE vEndDate TIMESTAMP;
 			DECLARE todayDate TIMESTAMP;
 			DECLARE vtodayDate CHAR;		
 			DECLARE i INT 1;
-								
+			
+			SET vtodayDate 	= CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000';
+			SET todayDate 	= CAST(vtodayDate AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss.SSS');							
+			
 			SET nbrEmpNav 	= CARDINALITY(inRef.employmentNav.results.Item[]);
-
+			
 			-- Get active employmentNav
 			IF (nbrEmpNav > 1) THEN		
 			
-			-- Set temp start date way ahead in the future
-			SET tmpStartDate = CAST('2299-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
-			
+				-- Set temp start date way ahead in the future
+				SET tmpStartDate = CAST('2299-01-01 00:00:00' AS TIMESTAMP FORMAT 'yyyy-MM-dd HH:mm:ss');
+				
 				WHILE(nbrEmpNav >= i) DO
 	
-					SET vStartDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].startDate);	
+					SET vStartDate 	= INT0080.COMMON.GetSFTimeStamp(inRef.employmentNav.results.Item[i].startDate);
 														
 					-- Todays date always needs to be lesser than employment info start date
 					IF (todayDate < vStartDate) THEN 
@@ -163,11 +165,12 @@ CREATE COMPUTE MODULE GetSinglePerPersonFuture
 							SET tmpStartDate = vStartDate;																
 							SET vEmpAr = i;
 						END IF;
-					END IF;								
+					END IF;							
 					
 					SET i = i +1;	
-				END WHILE;													
-			END IF;		
+				END WHILE;	
+			END IF;
+	
 	END;
 
 	CREATE FUNCTION GetSingleQPerPersonFuture(IN vHost CHAR, IN personIdExternal CHAR, IN asOfDate CHAR) RETURNS CHAR BEGIN			 		
