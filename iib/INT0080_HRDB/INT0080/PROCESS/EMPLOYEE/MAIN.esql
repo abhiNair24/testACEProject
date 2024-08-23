@@ -1115,7 +1115,4 @@ CREATE COMPUTE MODULE ProcessEmployee
 		WHERE 	T.personIdExternal = personIdExternal AND 
 				T.recordTodate IS NULL;					
 	END;
-	
-	
 END MODULE;								  	  				
-

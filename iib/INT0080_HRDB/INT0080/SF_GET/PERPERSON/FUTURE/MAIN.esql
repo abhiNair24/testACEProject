@@ -22,7 +22,7 @@ CREATE COMPUTE MODULE GetPerPersonFutureList
 		PASSTHRU('COMMIT;');		
 		
 		-- Get URL
-		SET vHost = Environment.Conn.URL; 	
+		SET vHost = Environment.Conn.URL;
 		
 		-- Set Environment start values
 		SET Environment.SF.Meta.hasMore 	= true;
@@ -301,4 +301,22 @@ CREATE COMPUTE MODULE PropagateJsonMessage
 		
 		RETURN TRUE;
 	END;
+END MODULE;
+
+CREATE COMPUTE MODULE AddErrorToSyncTable
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+	
+	-- Add error to sync table
+	CALL INT0080.COMMON.InsertSynchLog('FutureEmployee',
+									   'Error',
+									   null,
+									   null,
+									   null,
+									   'MessageFlow',
+									   'There was an error in ' || MessageFlowLabel || '. See LogViewer for details.');	
+		COMMIT;
+		RETURN FALSE;	
+	END;
+
 END MODULE;

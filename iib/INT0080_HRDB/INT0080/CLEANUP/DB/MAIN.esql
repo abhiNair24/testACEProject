@@ -5,7 +5,8 @@ BROKER SCHEMA INT0080.CLEANUP.DB
 -- Working tables
 DECLARE TBL_PERSON				CONSTANT CHARACTER 'EmpPerson';
 DECLARE TBL_EMPLOYMENT			CONSTANT CHARACTER 'EmpEmployment';
-DECLARE TBL_EMPLOYMENT_FUTURE	CONSTANT CHARACTER 'EmpEmploymentFuture'; 
+DECLARE TBL_EMPLOYMENT_FUTURE	CONSTANT CHARACTER 'EmpEmploymentFuture';
+DECLARE TBL_SYNCH_LOG			CONSTANT CHARACTER 'SynchODdataLog'; 
 
 CREATE COMPUTE MODULE CleanUpDatabase
 	CREATE FUNCTION Main() RETURNS BOOLEAN
@@ -14,22 +15,15 @@ CREATE COMPUTE MODULE CleanUpDatabase
 		DECLARE daysBack INT 5;
 		DECLARE dateFrom CHAR;
 		DECLARE updateFrom CHAR;
-		DECLARE dateNow CHAR;
-		DECLARE safeCheck INT;
+		DECLARE safeToRun BOOLEAN false;
 		DECLARE dataExists BOOLEAN false;
 		DECLARE workingRef REFERENCE TO OutputRoot;	
-		
-		SET dateNow = CAST(CURRENT_DATE AS CHAR FORMAT 'yyyy-MM-dd');
-		
-		-- Get count of total active rows that have LastSynchDate as todays date or grater than todays date  				
-		SET safeCheck = 
-		SELECT  COUNT(*)
-		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
-		WHERE	T.recordToDate IS NULL AND	 	
-				T.lastSyncDate >= dateNow;
+						
+		-- Check if it is safe to run DB cleanup for employees
+		SET safeToRun = CheckIfSafeToRunEmp();
 				
-		-- If more than 10 000 employees have todays lastSyncDate set, then we assume we can run cleanup checks
-		IF (safeCheck > 10000) THEN
+		-- Run DB cleanup for employees if safe check was not breached
+		IF (safeToRun = true) THEN
 		
 			-- Date to be used in queries to get entities (i.e. employees) that have been purged in SuccessFactors that we need to purge in HRDB
 			SET dateFrom = CAST(CURRENT_DATE - CAST(daysBack AS INTERVAL DAY) AS CHAR FORMAT 'yyyy-MM-dd') || ' 00:00:00.000'; 
@@ -183,7 +177,12 @@ CREATE COMPUTE MODULE CleanUpDatabase
 		IF (dataExists = true) THEN
 			PROPAGATE TO TERMINAL 'out';		
 		ELSE
-			SET OutputRoot.XMLNSC.Status.Info = 'No data found in database HRDB to be cleaned up. Note! There is a safe check that checks so there are more than 10 000 employees where recordToDate is null and that have todays lastSyncDate set before running any cleanup checks!';			
+			IF (safeToRun = false) THEN
+				SET OutputRoot.XMLNSC.Status.Info = 'Safe check was triggered and DB cleanup is ignored! The safe check logic checks if there is an error in table SynchODdataLog for Employee or FutureEmployee OR if MAX(lastSyncDate) in table EmpEmployment or table EmpEmploymentFuture was over 24 hours ago. If any of these are true, then the DB cleanup is ignored.';	
+			ELSE				
+				SET OutputRoot.XMLNSC.Status.Info = 'No data found in database HRDB to be cleaned up!';
+			END IF;
+			
 			SET OutputLocalEnvironment.MetaData.Status = 'Filtered';
 			PROPAGATE TO TERMINAL 'out1';
 		END IF;
@@ -191,6 +190,54 @@ CREATE COMPUTE MODULE CleanUpDatabase
 		RETURN FALSE;
 	END;
 
+	CREATE FUNCTION CheckIfSafeToRunEmp() RETURNS BOOLEAN 
+	BEGIN			 		
+
+		/* If ts is bigger than MAX(lastSyncDate), then we assume the sync of employees or future employees
+		   was not run properly, or was never run in the last 24 hours and the DB cleanup should not run as 
+		   a safty caution. 
+		   
+		   Or if errorCount is bigger than 0, then there was an error in one or several employee message flows 
+		   and the DB cleanup should not run a safty caution. 
+		   
+		   This is used as a safty check so we do not accidently purge 
+		   employees*/
+							
+		DECLARE maxLSDateEmp TIMESTAMP;
+		DECLARE maxLSDateFutureEmp TIMESTAMP;
+		DECLARE errorCount INT;
+		DECLARE ts TIMESTAMP;
+		
+		-- Get MAX lastSyncDate from table EmpEmployment
+		SET 	maxLSDateEmp = 
+		SELECT  MAX(T.lastSyncDate)
+		FROM 	Database.dbo.{TBL_EMPLOYMENT} AS T 
+		WHERE	T.recordToDate IS NULL;	
+		
+		-- Get MAX lastSyncDate from table EmpEmploymentFuture
+		SET 	maxLSDateFutureEmp = 
+		SELECT  MAX(T.lastSyncDate)
+		FROM 	Database.dbo.{TBL_EMPLOYMENT_FUTURE} AS T 
+		WHERE	T.recordToDate IS NULL;			
+		
+		-- Get count of any logged errors
+		SET 	errorCount = 
+		SELECT  COUNT(*)
+		FROM 	Database.dbo.{TBL_SYNCH_LOG} AS T
+		WHERE	T.Status = 'Error'
+		AND		T.Object = 'MessageFlow'
+		AND		T.Type IN ('Employee', 'FutureEmployee');		
+		
+		-- Get current timstamp -1 day	
+		SET ts = CURRENT_TIMESTAMP - CAST(1 AS INTERVAL DAY);
+		
+		IF (ts > maxLSDateEmp OR ts > maxLSDateFutureEmp OR errorCount > 0) THEN
+			RETURN false;
+		ELSE
+			RETURN true;
+		END IF;
+	END;
+	
 	CREATE PROCEDURE GetPurgedNoneTerminatedEmployees(IN dateFrom CHAR, IN tableName CHAR) BEGIN		
 			
 		-- Get employees that is not Terminated and have a lastSyncDate < 5 days
