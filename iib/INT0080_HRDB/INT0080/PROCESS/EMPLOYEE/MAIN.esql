@@ -799,8 +799,8 @@ CREATE COMPUTE MODULE ProcessEmployee
 	
 				-- Get contingentWorkerAdminPositionId 
 				SET contWrkAdmPositionId = TRIM(LEFT(THE (SELECT ITEM fieldvalue(r.relatedPosition)
-					       	   		 		   	 	  FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.positionMatrixRelationship.results.Item[] AS r
-				          	   		   		   	 	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
+					       	   		 		   	 	  	  FROM inRef.employmentNav.results.Item[vEmpAr].jobInfoNav.results.Item.positionNav.positionMatrixRelationship.results.Item[] AS r
+				          	   		   		   	 	  	  WHERE r.matrixRelationshipType = 'custom manager'), 128));
 				
 			END IF; 
 
@@ -878,9 +878,6 @@ CREATE COMPUTE MODULE ProcessEmployee
 			ELSEIF (CAST(COALESCE(standardHours, 99999)  AS CHAR FORMAT '##0.00' ) <> CAST(COALESCE(Environment.tmp.Employment.standardHours, 99999)  AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'standardHours';
 			ELSEIF (CAST(COALESCE(workingDaysPerWeek, 99999)  AS CHAR FORMAT '##0.00' ) <>  CAST(COALESCE(Environment.tmp.Employment.workingDaysPerWeek, 99999) AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'workingDaysPerWeek';
 			ELSEIF (CAST(COALESCE(fullTimeEquivalent, 99999)  AS CHAR FORMAT '##0.00' ) <>  CAST(COALESCE(Environment.tmp.Employment.fullTimeEquivalent, 99999) AS CHAR FORMAT '##0.00' ) ) THEN SET firstMismatch = 'fullTimeEquivalent';
-			ELSEIF (COALESCE(event, '') <> COALESCE(Environment.tmp.Employment.event, '') ) THEN SET firstMismatch = 'event';
-			ELSEIF (COALESCE(eventReason, '') <> COALESCE(Environment.tmp.Employment.eventReason, '') ) THEN SET firstMismatch = 'eventReason';
-			ELSEIF (COALESCE(eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) <> COALESCE(Environment.tmp.Employment.eventDate, CAST('19000101' AS DATE FORMAT 'yyyyMMdd')) ) THEN SET firstMismatch = 'eventDate';
 			ELSEIF (COALESCE(businessEmail, '') <> COALESCE(Environment.tmp.Employment.businessEmail, '') ) THEN SET firstMismatch = 'businessEmail';
 			ELSEIF (COALESCE(businessMobCtryCode, '') <> COALESCE(Environment.tmp.Employment.businessMobileCountryCode, '') ) THEN SET firstMismatch = 'businessMobileCountryCode';
 			ELSEIF (COALESCE(businessMobPhoneNbr, '') <> COALESCE(Environment.tmp.Employment.businessMobilePhoneNumber, '') ) THEN SET firstMismatch = 'businessMobilePhoneNumber';
